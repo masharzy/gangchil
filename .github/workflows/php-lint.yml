@@ -16,3 +16,4 @@ jobs:
         run: |
           for f in private/*.php public/*.php; do php -l "$f"; done
           node --check public/app.js
+          node tests/frontend-smoke.cjs
