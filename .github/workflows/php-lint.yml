@@ -1,0 +1,18 @@
+name: PHP and frontend syntax
+on:
+  push:
+  pull_request:
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, mbstring
+      - name: Syntax check
+        run: |
+          for f in private/*.php public/*.php; do php -l "$f"; done
+          node --check public/app.js
