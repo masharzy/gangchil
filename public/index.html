@@ -1,1 +1,70 @@
-<!doctype html><html lang="bn"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0F3D2E"><title>GANGCHIL — Restaurant & Kabsa Place</title><link rel="manifest" href="/manifest.json"><link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@700&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="/style.css"></head><body><header><img src="/logo.svg" alt="GANGCHIL"><div><b>GANGCHIL</b><small>RESTAURANT & KABSA PLACE</small></div><span id="who"></span><button id="loginBtn" class="small" onclick="go('login')">Staff Login</button></header><div id="notice" role="status"></div><main id="app"></main><nav id="nav"><button onclick="go('menu')">Menu</button><button onclick="go('cart')">Cart <span id="count"></span></button><button onclick="go('orders')">Orders</button><button onclick="go('manage')">Manage</button></nav><script defer src="https://cdn.jsdelivr.net/npm/pusher-js@8.6.0/dist/web/pusher.min.js"></script><script defer src="/app.js"></script></body></html>
+<!doctype html>
+<html lang="bn">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0f3d2e">
+  <meta name="description" content="GANGCHIL restaurant staff POS, cashier, kitchen and table operations.">
+  <title>GANGCHIL · Restaurant Operations</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body class="is-guest">
+  <div class="app-shell">
+    <aside id="sidebar" class="sidebar" aria-label="Operations">
+      <a class="brand" href="#dashboard" onclick="go(state.user ? homePage() : 'login');return false">
+        <img src="/logo.svg" alt="" width="42" height="42">
+        <div><b>GANGCHIL</b><small>Restaurant & Kabsa Place</small></div>
+      </a>
+      <p class="nav-label">WORKSPACE</p>
+      <div class="side-nav">
+        <button data-page="dashboard" data-permission="reports:view" onclick="go('dashboard')"><span class="nav-icon">▦</span> Overview</button>
+        <button data-page="menu" data-permission="orders:create" onclick="go('menu')"><span class="nav-icon">⊞</span> New Order</button>
+        <button data-page="orders" data-permission="orders:view" onclick="go('orders')"><span class="nav-icon">☰</span> All Orders</button>
+        <button data-page="cashier" data-permission="orders:pay" onclick="go('cashier')"><span class="nav-icon">৳</span> Cash Desk</button>
+        <button data-page="kitchen" data-permission="orders:prepare" onclick="go('kitchen')"><span class="nav-icon">♨</span> Kitchen</button>
+        <button data-page="service" data-permission="orders:serve" onclick="go('service')"><span class="nav-icon">✓</span> Service</button>
+      </div>
+      <p class="nav-label">MANAGEMENT</p>
+      <div class="side-nav">
+        <button data-page="reports" data-permission="reports:view" onclick="go('reports')"><span class="nav-icon">↗</span> Reports</button>
+        <button data-page="manage" data-permission="products:manage" onclick="go('manage')"><span class="nav-icon">≡</span> Menu & Tables</button>
+        <button data-page="staff" data-permission="*" onclick="go('staff')"><span class="nav-icon">♙</span> Team</button>
+        <button data-page="audit" data-permission="*" onclick="go('audit')"><span class="nav-icon">≣</span> Activity</button>
+      </div>
+      <div class="sidebar-foot"><span class="brand-pip"></span> Staff operations only</div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar">
+        <div class="mobile-brand">
+          <img src="/logo.svg" alt="" width="33" height="33">
+          <b>GANGCHIL</b>
+        </div>
+        <div class="page-identity"><strong id="viewTitle">Operations</strong><span id="viewHint">Restaurant POS</span></div>
+        <div class="topbar-right">
+          <span id="connectionPill" class="connection-pill" aria-live="polite">● Connecting</span>
+          <span id="who" class="staff-identity"></span>
+          <button id="loginBtn" class="small" onclick="go('login')">Sign In</button>
+        </div>
+      </header>
+      <div id="notice" role="status" aria-live="polite"></div>
+      <main id="app" tabindex="-1" aria-label="Workspace"></main>
+      <nav id="nav" class="mobile-nav" aria-label="Quick navigation">
+        <button data-page="dashboard" data-permission="reports:view" onclick="go('dashboard')">Overview</button>
+        <button data-page="menu" data-permission="orders:create" onclick="go('menu')">New Order <span id="count"></span></button>
+        <button data-page="orders" data-permission="orders:view" onclick="go('orders')">Orders</button>
+        <button data-page="cashier" data-permission="orders:pay" onclick="go('cashier')">Cash Desk</button>
+        <button data-page="kitchen" data-permission="orders:prepare" onclick="go('kitchen')">Kitchen</button>
+        <button data-page="service" data-permission="orders:serve" onclick="go('service')">Service</button>
+        <button data-page="reports" data-permission="reports:view" onclick="go('reports')">Reports</button>
+        <button data-page="manage" data-permission="products:manage" onclick="go('manage')">Manage</button>
+      </nav>
+    </div>
+  </div>
+  <script defer src="https://cdn.jsdelivr.net/npm/pusher-js@8.6.0/dist/web/pusher.min.js"></script>
+  <script defer src="/app.js"></script>
+</body>
+</html>
