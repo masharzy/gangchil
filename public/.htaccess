@@ -2,6 +2,8 @@ Options -Indexes
 DirectoryIndex index.html
 <IfModule mod_rewrite.c>
 RewriteEngine On
+# Defense in depth: never expose application internals.
+RewriteRule ^private(?:/|$) - [F,L]
 RewriteRule ^api/(.*)$ api.php?route=$1 [QSA,L]
 RewriteRule ^health$ api.php?route=health [QSA,L]
 </IfModule>
