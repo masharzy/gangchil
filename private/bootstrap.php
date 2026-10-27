@@ -78,7 +78,6 @@ function integer_id(mixed $value): int {
 function audit(?int $uid,string $action,string $entity,int|string $id,array $details=[]): void {
  query('INSERT INTO audit_logs(user_id,action,entity,entity_id,details) VALUES(?,?,?,?,?)',[$uid,$action,$entity,(string)$id,json_encode($details,JSON_UNESCAPED_UNICODE)]);
 }
-function change_event(): void {query('INSERT INTO changes() VALUES()');}
 function trim_text(mixed $value,int $max): string {
  if(!is_string($value))return '';return mb_substr(trim($value),0,$max,'UTF-8');
 }
