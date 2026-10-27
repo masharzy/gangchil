@@ -29,8 +29,8 @@ jobs:
           test -f dist/htdocs/private/.htaccess
           test -f dist/htdocs/api.php
           test -f dist/htdocs/index.html
-          cd dist
-          zip -qr gangchil-infinityfree.zip htdocs
+          cd dist/htdocs
+          zip -qr ../gangchil-infinityfree.zip .
       - name: Upload install-ready ZIP
         uses: actions/upload-artifact@v4
         with:
