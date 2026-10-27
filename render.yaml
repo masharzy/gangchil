@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: gangchil
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: PUBLIC_ORIGIN
+        sync: false
