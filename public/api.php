@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../private/bootstrap.php';
+require_once __DIR__ . '/../private/realtime.php';
 date_default_timezone_set('Asia/Dhaka');
 header('X-Content-Type-Options: nosniff');
 $route=trim((string)($_GET['route']??''),'/');
@@ -13,7 +14,21 @@ try {
  if($route==='auth/me' && $method==='GET'){
   json_response(['user'=>current_user(),'csrf'=>csrf_token()]);
  }
+ if($route==='realtime/config' && $method==='GET'){
+  require_permission('orders:view');
+  json_response(['enabled'=>realtime_enabled(),
+   'key'=>realtime_enabled()?PUSHER_KEY:null,
+   'cluster'=>realtime_enabled()?PUSHER_CLUSTER:null]);
+ }
  if($method!=='GET')require_csrf();
+ if($route==='realtime/auth' && $method==='POST'){
+  require_permission('orders:view');
+  $socket=(string)($_POST['socket_id']??'');
+  $channel=(string)($_POST['channel_name']??'');
+  if(!realtime_enabled())fail('Realtime unavailable',503);
+  try {json_response(realtime_private_auth($socket,$channel));}
+  catch(InvalidArgumentException $e){fail('Invalid realtime request',403);}
+ }
  if($route==='auth/login' && $method==='POST'){
   $d=request_data();$email=strtolower(trim_text($d['email']??'',190));$password=(string)($d['password']??'');
   $now=time();$attempt=(int)($_SESSION['failed_login_count']??0);$start=(int)($_SESSION['failed_login_at']??0);
@@ -39,10 +54,6 @@ try {
    'products'=>query('SELECT id,name,description,price,image_url,category_id,available FROM products ORDER BY id DESC')->fetchAll(),
    'tables'=>query('SELECT id,name FROM dining_tables WHERE active=1 ORDER BY id')->fetchAll()
   ]);
- }
- if($route==='version' && $method==='GET'){
-  require_permission('orders:view');$version=(int)query('SELECT COALESCE(MAX(id),0) FROM changes')->fetchColumn();
-  json_response(['version'=>$version]);
  }
  if($route==='orders' && $method==='GET'){
   require_permission('orders:view');$status=(string)($_GET['status']??'');
@@ -95,7 +106,8 @@ try {
     $q=$quantities[(int)$p['id']];$line=number_format(((int)round((float)$p['price']*100)*$q)/100,2,'.','');
     query('INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES(?,?,?,?,?,?)',[$orderId,$p['id'],$p['name'],$q,$p['price'],$line]);
    }
-   audit((int)$u['id'],'order.create','order',$orderId);change_event();$db->commit();
+   audit((int)$u['id'],'order.create','order',$orderId);$db->commit();
+   realtime_publish('order-created');
    json_response(['order'=>['id'=>$orderId,'status'=>'pending_payment','total'=>$total]],201);
   } catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
  }
@@ -114,7 +126,8 @@ try {
    $sql='UPDATE orders SET status=?, '.$transition[3].'=NOW(), '.$transition[4].'=? WHERE id=? AND status=?';
    $s=query($sql,[$transition[1],$u['id'],$id,$transition[0]]);
    if(!$s->rowCount())fail('Order not found or already updated',409);
-   audit((int)$u['id'],'order.'.$action,'order',$id);change_event();$db->commit();
+   audit((int)$u['id'],'order.'.$action,'order',$id);$db->commit();
+   realtime_publish('order-status');
    json_response(['order'=>query('SELECT * FROM orders WHERE id=?',[$id])->fetch()]);
   } catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
  }
@@ -167,7 +180,7 @@ try {
   $u=require_permission('products:manage');$d=request_data();$name=trim_text($d['name']??'',120);
   if(!$name)fail('Name required');
   query('INSERT INTO categories(name) VALUES(?)',[$name]);$newId=(int)database()->lastInsertId();
-  audit((int)$u['id'],'category.create','category',$newId);change_event();
+  audit((int)$u['id'],'category.create','category',$newId);realtime_publish('menu');
   json_response(['category'=>['id'=>$newId,'name'=>$name]],201);
  }
  if($route==='products' && $method==='POST'){
@@ -177,7 +190,7 @@ try {
   if(!$name||!is_numeric($price)||$price<0||$price>1000000||($image!==null&&!filter_var($image,FILTER_VALIDATE_URL)))fail('Invalid product');
   if($image!==null&&!str_starts_with($image,'https://'))fail('Image must use HTTPS');
   query('INSERT INTO products(name,description,price,category_id,image_url) VALUES(?,?,?,?,?)',[$name,trim_text($d['description']??'',1000),number_format((float)$price,2,'.',''),$cat,$image]);
-  $newId=(int)database()->lastInsertId();audit((int)$u['id'],'product.create','product',$newId);change_event();
+  $newId=(int)database()->lastInsertId();audit((int)$u['id'],'product.create','product',$newId);realtime_publish('menu');
   json_response(['product'=>query('SELECT * FROM products WHERE id=?',[$newId])->fetch()],201);
  }
  if(preg_match('#^products/([1-9][0-9]*)$#',$route,$m) && $method==='PATCH'){
@@ -192,14 +205,14 @@ try {
   if(!$name||!is_numeric($price)||$price<0||$price>1000000||!is_bool($available))fail('Invalid product update');
   if($image!==null&&(!is_string($image)||!str_starts_with($image,'https://')))fail('Invalid image URL');
   query('UPDATE products SET name=?,description=?,price=?,category_id=?,image_url=?,available=? WHERE id=?',[$name,$description,number_format((float)$price,2,'.',''),$cat,$image,(int)$available,$pid]);
-  audit((int)$u['id'],'product.update','product',$pid);change_event();
+  audit((int)$u['id'],'product.update','product',$pid);realtime_publish('menu');
   json_response(['product'=>query('SELECT * FROM products WHERE id=?',[$pid])->fetch()]);
  }
  if($route==='tables' && $method==='POST'){
   $u=require_permission('tables:manage');$d=request_data();$name=trim_text($d['name']??'',100);
   if(!$name)fail('Table name required');
   query('INSERT INTO dining_tables(name) VALUES(?)',[$name]);$newId=(int)database()->lastInsertId();
-  audit((int)$u['id'],'table.create','table',$newId);change_event();
+  audit((int)$u['id'],'table.create','table',$newId);realtime_publish('menu');
   json_response(['table'=>['id'=>$newId,'name'=>$name]],201);
  }
  fail('Route not found',404);
