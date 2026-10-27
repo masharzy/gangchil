@@ -1,17 +1,20 @@
 services:
   - type: web
-    name: gangchil
-    runtime: node
+    name: gangchil-php-demo
+    runtime: docker
     plan: free
-    buildCommand: npm install
-    startCommand: npm run migrate && npm start
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
+      - key: MYSQL_HOST
         sync: false
-      - key: SESSION_SECRET
-        generateValue: true
-      - key: PUBLIC_ORIGIN
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_DATABASE
+        sync: false
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: INSTALL_TOKEN
         sync: false
