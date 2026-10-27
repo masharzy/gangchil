@@ -18,3 +18,11 @@ services:
         sync: false
       - key: INSTALL_TOKEN
         sync: false
+      - key: PUSHER_APP_ID
+        sync: false
+      - key: PUSHER_KEY
+        sync: false
+      - key: PUSHER_SECRET
+        sync: false
+      - key: PUSHER_CLUSTER
+        sync: false
