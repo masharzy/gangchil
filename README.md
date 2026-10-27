@@ -14,6 +14,23 @@ No Node.js, PostgreSQL, Socket.IO or VPS needed for cheap shared hosting.
 
 Uses database transactions, authoritative menu prices, request tokens to prevent duplicate checkout, audit logs and granular permissions.
 
+## InfinityFree: working PHP + MySQL demo (optimized upload)
+
+**Supported account requirements**: free subdomain or custom domain, PHP 8.3+, MariaDB 10.6+, PHP PDO MySQL, cURL/HTTPS, File Manager or FTP.
+
+**Do not upload `private/config.php` to GitHub or send account/database passwords in chat.**
+
+1. In InfinityFree: Accounts → Manage → Control Panel → **MySQL Databases** → create a database called e.g. `gangchil`. Write down the **full** database name, MySQL hostname (e.g. `sql###.infinityfree.com`, not `localhost`) and database user. The password is the **hosting-account password**, not the InfinityFree client-area password.
+2. Download the ready-made ZIP by opening **GitHub → Actions → Build InfinityFree upload package → latest successful run → Artifacts → gangchil-infinityfree-htdocs**. Unzip that artifact; inside is `gangchil-infinityfree.zip`, containing files meant to be uploaded **directly to the website's `htdocs/`**. Avoid uploading another nested `htdocs/` directory.
+3. The InfinityFree File Manager can upload ZIP and forward-upload extracted files; if it fails, extract the inner ZIP locally and transfer all contents using FTP/FileZilla. Make sure `index.html`, `api.php`, `install.php`, `.htaccess`, and `private/` end up directly under `htdocs/`.
+4. In **`htdocs/private/`**, copy `config.example.php` to `config.php`. Edit **DB_HOST, DB_NAME, DB_USER, DB_PASSWORD** with your hosting account's MySQL details; **INSTALL_TOKEN** must be a unique random string with 24+ characters. `private/.htaccess` is in the package and must remain present to block public access to secrets; test `https://<domain>/private/config.php` returns **403 Forbidden** before creating an account.
+5. On your domain open `https://<domain>/install.php`, enter INSTALL_TOKEN and create the first Owner. The installer will automatically import the protected `private/mysql.sql` schema and create initial categories/tables; no phpMyAdmin SQL import is required for this packaging format.
+6. Log in as Owner. Add product details and other staff, create an order, cash-confirm it, move it through Chef → Ready → Served, and test the paid 80mm receipt page.
+7. Optional Pusher Channels WebSocket notifications: configure `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER` in the same private config.php; PHP sends outbound HTTPS events on port 443. Check the Live indicator on two devices. Without Pusher, **↻ Refresh** loads just the list with no whole-page reload. **No background polling**.
+8. Remove `install.php` from hosting once installation is complete. Export regular offsite MySQL backups.
+
+**InfinityFree quirks**: server-sent API calls and external automation may hit a mandatory browser anti-bot challenge, but same-origin browser AJAX is supported if the browser keeps the security cookie. The Pusher private-channel authentication call is same-origin. Remote MySQL access is unavailable on the free plan. External outgoing HTTPS calls are permitted generally, but test Pusher publication on the real host. This free host is **for client demonstrations only**, not restaurant production.
+
 ## cPanel / LiteSpeed shared hosting installation
 Requirements: PHP 8.1+, PDO MySQL, mbstring, MySQL or MariaDB, HTTPS and .htaccess rewrite support.
 
