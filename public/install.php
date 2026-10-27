@@ -17,7 +17,9 @@ try {
   $db=database();
   // Docker demo can bootstrap its schema automatically after verifying INSTALL_TOKEN.
   // Shared cPanel deployments can still import db/mysql.sql with phpMyAdmin.
-  $schemaFile=__DIR__.'/../db/mysql.sql';
+  // The InfinityFree package includes the schema in htdocs/private.
+  $schemaFile=__DIR__.'/private/mysql.sql';
+  if(!is_file($schemaFile))$schemaFile=__DIR__.'/../db/mysql.sql';
   if(!is_file($schemaFile))$schemaFile=__DIR__.'/../private/mysql.sql';
   if(is_file($schemaFile)){
    $schema=file_get_contents($schemaFile);
