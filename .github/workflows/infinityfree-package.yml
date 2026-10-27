@@ -1,0 +1,40 @@
+name: Build InfinityFree upload package
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - 'public/**'
+      - 'private/**'
+      - 'db/mysql.sql'
+      - '.github/workflows/infinityfree-package.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout application
+        uses: actions/checkout@v4
+      - name: Package htdocs
+        run: |
+          set -euo pipefail
+          mkdir -p dist/htdocs/private
+          cp -a public/. dist/htdocs/
+          cp private/bootstrap.php private/realtime.php private/config.env.php private/config.example.php private/.htaccess dist/htdocs/private/
+          cp db/mysql.sql dist/htdocs/private/mysql.sql
+          test -f dist/htdocs/.htaccess
+          test -f dist/htdocs/private/.htaccess
+          test -f dist/htdocs/api.php
+          test -f dist/htdocs/index.html
+          cd dist
+          zip -qr gangchil-infinityfree.zip htdocs
+      - name: Upload install-ready ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: gangchil-infinityfree-htdocs
+          path: dist/gangchil-infinityfree.zip
+          if-no-files-found: error
+          retention-days: 14
