@@ -4,7 +4,8 @@ require_once __DIR__.'/../private/bootstrap.php';
 header('Cache-Control: no-store');
 $error='';
 try {
- $num=(int)query('SELECT COUNT(*) FROM users')->fetchColumn();
+ $hasUsers=(bool)query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='users'")->fetchColumn();
+ $num=$hasUsers?(int)query('SELECT COUNT(*) FROM users')->fetchColumn():0;
  if($num>0){http_response_code(403);exit('Installer locked. An owner already exists. Delete public/install.php from hosting after setup.');}
  if($_SERVER['REQUEST_METHOD']==='POST'){
   if(!hash_equals(csrf_token(),(string)($_POST['csrf']??'')))throw new RuntimeException('Invalid security token. Reload page.');
@@ -13,7 +14,23 @@ try {
   $pass=(string)($_POST['password']??'');
   if(strlen(INSTALL_TOKEN)<24 || !hash_equals(INSTALL_TOKEN,$token))throw new RuntimeException('Invalid installation token.');
   if(!$name || !filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($pass)<12)throw new RuntimeException('Valid name, email and 12+ character password required.');
-  $db=database();$db->beginTransaction();
+  $db=database();
+  // Docker demo can bootstrap its schema automatically after verifying INSTALL_TOKEN.
+  // Shared cPanel deployments can still import db/mysql.sql with phpMyAdmin.
+  $schemaFile=__DIR__.'/../db/mysql.sql';
+  if(!is_file($schemaFile))$schemaFile=__DIR__.'/../private/mysql.sql';
+  if(is_file($schemaFile)){
+   $schema=file_get_contents($schemaFile);
+   if($schema===false)throw new RuntimeException('Cannot read database schema.');
+   foreach(preg_split('/;[\\t ]*(?:\\r?\\n|$)/',$schema) as $statement){
+    $statement=trim($statement);
+    if($statement!=='')$db->exec($statement);
+   }
+  } elseif(!$hasUsers){
+   throw new RuntimeException('First import db/mysql.sql with phpMyAdmin, then run the installer.');
+  }
+  if((int)query('SELECT COUNT(*) FROM users')->fetchColumn()>0)throw new RuntimeException('Owner already installed.');
+  $db->beginTransaction();
   try {
    query('INSERT INTO users(name,email,password_hash,role,permissions) VALUES(?,?,?,?,?)',[$name,$email,password_hash($pass,PASSWORD_DEFAULT),'owner','{}']);
    foreach(['Kabsa','Rice & Biryani','Chicken','Drinks'] as $cat)query('INSERT INTO categories(name) VALUES(?)',[$cat]);
