@@ -26,16 +26,24 @@ Requirements: PHP 8.1+, PDO MySQL, mbstring, MySQL or MariaDB, HTTPS and .htacce
 7. Delete public_html/install.php after successful setup.
 8. Visit https://your-domain.com/#login and sign in. Add products, staff and test payment and receipt workflows.
 
-## Important: near-live updates without WebSockets
-To work on inexpensive PHP shared hosting, active staff screens check the lightweight MySQL order version endpoint roughly every 1 second. Orders are refetched only when a change is detected. Background checks are slower.
-This is AJAX polling, NOT true real-time WebSocket push. Network/provider delays and shared-host process restrictions may cause additional delay. Do not claim 0ms instant updates.
+## Real-time order updates: Pusher Channels + manual Refresh (no polling)
+- Server is still **PHP + MySQL** on standard cheap shared hosting. No Node.js, WebSocket server or VPS is needed.
+- Configure a **Pusher Channels Sandbox** app at https://dashboard.pusher.com and copy **APP_ID, KEY, SECRET, CLUSTER** to the matching `PUSHER_*` constants in the private config.php.
+- PHP uses an authenticated **private-gangchil-staff** channel. When an order is saved or its status changes, PHP commits the database transaction and then publishes a tiny `gangchil:changed` event over HTTPS. No order/customer details are transmitted in that event.
+- Staff browsers maintain a Pusher-managed WebSocket; on a change event, only the order list is fetched with AJAX. A green "Live" status confirms subscription; amber/red statuses show when realtime is unavailable.
+- A small **↻ Refresh** button refreshes the order list only, **without a full-page reload**. It works even if Pusher is down or not configured.
+- **NO periodic AJAX polling**. The app also fetches fresh data when reopening the order screen or when a reconnect/visibility change happens, so a disconnected tablet can recover missed changes.
+- Publish failures cannot roll back or erase committed orders. MySQL remains the source of truth. No guarantee of zero-second delivery.
+- Pusher's free tier currently advertises 200,000 messages/day and 100 concurrent connections; quota is affected by fan-out to connected staff devices. Verify the live terms before relying on it.
+- Provider must allow PHP to make outbound HTTPS requests to Pusher and must have PHP cURL or HTTPS stream support. SSL/TLS is essential.
+- Run an end-to-end push/reconnect/manual-refresh test using at least two staff devices before live operation.
 
 ## Thermal receipts
 Staff click Print Receipt on a paid order. receipt.php provides an 80mm print stylesheet and the browser's Print dialog. A compatible Android/iPad printer driver or print service is necessary. Direct silent ESC/POS printing is NOT implemented; test the actual tablet/printer pair before purchasing.
 
 ## Render free demo (optional)
 Dockerfile + render.yaml serve the same PHP code on Render.
-Create an EXTERNAL MySQL database and import db/mysql.sql. Configure environment variables MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD and INSTALL_TOKEN.
+Create an EXTERNAL MySQL database and import db/mysql.sql. Configure environment variables MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, INSTALL_TOKEN, PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET and PUSHER_CLUSTER.
 When private/config.php is absent, private/config.env.php reads these environment variables.
 Run install.php to create the first owner. Render Free sleeps on inactivity, so use for demos only.
 
