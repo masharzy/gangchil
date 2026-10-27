@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__ . '/../private/bootstrap.php';
+require_once is_file(__DIR__.'/private/bootstrap.php') ? __DIR__.'/private/bootstrap.php' : __DIR__.'/../private/bootstrap.php';
 require_once __DIR__ . '/../private/realtime.php';
 date_default_timezone_set('Asia/Dhaka');
 header('X-Content-Type-Options: nosniff');
