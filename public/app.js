@@ -126,7 +126,7 @@ function boardTitle(label,title,note){
 }
 function orderTicket(order,action){
   const all=Array.isArray(order.items)?order.items:[];
-  const a=action||actions[order.status];
+  const a=action===false?null:(action||actions[order.status]);
   const actionButton=a&&can(a[2])?`<button class="btn ticket-action" onclick="advance(${Number(order.id)},'${a[0]}')">${esc(a[1])}</button>`:'';
   return `<article class="work-ticket status-${esc(order.status)}">
     <div class="ticket-top"><strong>#${esc(order.id)}</strong><span class="badge ${esc(order.status)}">${esc(statuses[order.status]||order.status)}</span></div>
@@ -146,7 +146,7 @@ function cashierPage(){
     <div class="board-section-head"><h2>Awaiting payment</h2><span>${due.length} tickets</span></div>
     <div class="ticket-grid">${due.map(o=>orderTicket(o,['pay','Confirm Cash','orders:pay'])).join('')||'<div class="empty-state"><b>Cash queue is clear</b><p>New tablet orders appear here automatically.</p></div>'}</div>
     <div class="board-section-head"><h2>Recently confirmed</h2><span>Latest ${recent.length}</span></div>
-    <div class="ticket-grid ticket-grid-compact">${recent.map(o=>orderTicket(o,null)).join('')||'<div class="empty-state">No paid tickets yet.</div>'}</div>
+    <div class="ticket-grid ticket-grid-compact">${recent.map(o=>orderTicket(o,false)).join('')||'<div class="empty-state">No paid tickets yet.</div>'}</div>
     <p class="muted">Cash tender, change and register reconciliation are scheduled for Phase 2. This screen currently confirms cash received but does not record denominations.</p>`;
 }
 function kitchenPage(){
@@ -159,7 +159,7 @@ function kitchenPage(){
   return boardTitle('BACK OF HOUSE','Kitchen Display','Work new tickets in arrival order; preparation notes stay visible.')+
    `<div class="kds-board">${queues.map(([title,status,sub])=>{
       const list=state.orders.filter(o=>o.status===status).sort((a,b)=>Number(a.id)-Number(b.id));
-      return `<section class="kds-column"><div class="kds-column-head"><div><h2>${title} <span class="queue-count">${list.length}</span></h2><p>${sub}</p></div></div><div class="kds-scroll">${list.map(o=>orderTicket(o)).join('')||'<div class="queue-empty">No tickets</div>'}</div></section>`;
+      return `<section class="kds-column"><div class="kds-column-head"><div><h2>${title} <span class="queue-count">${list.length}</span></h2><p>${sub}</p></div></div><div class="kds-scroll">${list.map(o=>orderTicket(o,status==='ready'?false:undefined)).join('')||'<div class="queue-empty">No tickets</div>'}</div></section>`;
     }).join('')}</div>`;
 }
 function servicePage(){
@@ -171,7 +171,7 @@ function servicePage(){
     <div class="board-section-head"><h2>Ready to serve</h2><span>${ready.length} waiting</span></div>
     <div class="ticket-grid">${ready.map(o=>orderTicket(o,['serve','Mark Served','orders:serve'])).join('')||'<div class="empty-state"><b>Nothing waiting for pickup</b><p>Kitchen-completed orders will appear here.</p></div>'}</div>
     <div class="board-section-head"><h2>Recently served</h2></div>
-    <div class="ticket-grid ticket-grid-compact">${served.map(o=>orderTicket(o,null)).join('')||'<div class="empty-state">No served tickets in the recent list.</div>'}</div>`;
+    <div class="ticket-grid ticket-grid-compact">${served.map(o=>orderTicket(o,false)).join('')||'<div class="empty-state">No served tickets in the recent list.</div>'}</div>`;
 }
 function dashboardPage(){
   if(!can('reports:view'))return '<div class="empty-state">Owner or manager access required.</div>';
