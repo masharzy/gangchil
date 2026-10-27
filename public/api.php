@@ -33,7 +33,7 @@ try {
   json_response(['ok'=>true]);
  }
  if($route==='menu' && $method==='GET'){
-  require_permission('orders:create');
+  require_permission('orders:view');
   json_response([
    'categories'=>query('SELECT id,name,sort_order,active FROM categories WHERE active=1 ORDER BY sort_order,id')->fetchAll(),
    'products'=>query('SELECT id,name,description,price,image_url,category_id,available FROM products ORDER BY id DESC')->fetchAll(),
