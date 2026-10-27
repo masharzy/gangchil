@@ -41,6 +41,27 @@ Requirements: PHP 8.1+, PDO MySQL, mbstring, MySQL or MariaDB, HTTPS and .htacce
 ## Thermal receipts
 Staff click Print Receipt on a paid order. receipt.php provides an 80mm print stylesheet and the browser's Print dialog. A compatible Android/iPad printer driver or print service is necessary. Direct silent ESC/POS printing is NOT implemented; test the actual tablet/printer pair before purchasing.
 
+## Railway full-database client demo (one project, no fake API)
+Use Railway Trial/Free to run **both** the real PHP application and a **MySQL service** inside the same Railway project.
+1. Connect Railway and create a project. Add a **MySQL** service using + New → Database → MySQL.
+2. Add an **app service** from GitHub repository `masharzy/gangchil`, branch `master`, with Dockerfile deployment (Railway automatically detects the repository Dockerfile).
+3. On the PHP app service, configure **variable references** to the MySQL service (change the service label if necessary):
+   - `MYSQLHOST=${{MySQL.MYSQLHOST}}`
+   - `MYSQLPORT=${{MySQL.MYSQLPORT}}`
+   - `MYSQLUSER=${{MySQL.MYSQLUSER}}`
+   - `MYSQLPASSWORD=${{MySQL.MYSQLPASSWORD}}`
+   - `MYSQLDATABASE=${{MySQL.MYSQLDATABASE}}`
+   - `INSTALL_TOKEN=` a long randomly generated secret (32+ characters)
+   - Optional Pusher values: `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`.
+4. Set PHP app **health check** to `/health` and generate a Railway public domain. The MySQL service stays **private**.
+5. Open `https://<app-domain>/install.php`; enter the secret installation token, owner name/email/password (12+ chars) to automatically import the included MySQL schema and create the first owner, default categories and tables. Manual SQL import is not required on this Docker demo.
+6. Sign in, add menu items and staff accounts, then verify tablet order → manager cash confirmation → chef preparation → waiter served → paid receipt print.
+7. Delete or restrict the installer for long-term production use. After first Owner creation, it blocks additional installs automatically.
+8. Store credentials **only in Railway service variables**. Never add them to GitHub, screenshots or chat messages.
+
+This deploy uses real MySQL transactions and persists orders when the PHP container restarts. PHP's default file-based login sessions can be lost after a container replacement; staff may need to sign in again. No external service is needed for MySQL. Pusher credentials are needed for instantaneous remote notifications; otherwise the button-based manual Refresh still works.
+Railway's new Config-as-Code format is evolving, so set deployment settings in the Railway dashboard, not a deprecated railway.json. Trial credits may expire; check your billing dashboard to avoid surprises.
+
 ## Render free demo (optional)
 Dockerfile + render.yaml serve the same PHP code on Render.
 Create an EXTERNAL MySQL database and import db/mysql.sql. Configure environment variables MYSQL_HOST, MYSQL_PORT, MYSQL_DATABASE, MYSQL_USER, MYSQL_PASSWORD, INSTALL_TOKEN, PUSHER_APP_ID, PUSHER_KEY, PUSHER_SECRET and PUSHER_CLUSTER.
