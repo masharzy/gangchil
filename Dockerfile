@@ -5,4 +5,4 @@ COPY public/ /var/www/html/
 COPY private/ /var/www/private/
 COPY db/mysql.sql /var/www/db/mysql.sql
 EXPOSE 10000
-CMD ["bash","-c","sed -i \"s/Listen 80/Listen ${PORT:-10000}/\" /etc/apache2/ports.conf && sed -i \"s/:80>/:\${PORT:-10000}>/\" /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"]
+CMD ["bash","-c","sed -i \"s/Listen 80/Listen ${PORT:-10000}/\" /etc/apache2/ports.conf && sed -i \"s/:80>/:${PORT:-10000}>/\" /etc/apache2/sites-available/000-default.conf && exec apache2-foreground"]
