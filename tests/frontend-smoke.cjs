@@ -9,7 +9,7 @@ const run=code=>vm.runInContext(code,context);
 (async()=>{
 run(readFileSync('public/app.js','utf8'));
 await new Promise(resolve=>setImmediate(resolve));
-assert.match(element('#app').innerHTML,/What would you like/);assert.doesNotMatch(element('#app').innerHTML,/Sign in to your workspace/);assert.equal(run('state.user'),null);
+assert.match(element('#app').innerHTML,/Search menu/);assert.doesNotMatch(element('#app').innerHTML,/customer-intro|<h1/);assert.doesNotMatch(element('#app').innerHTML,/Sign in to your workspace/);assert.equal(run('state.user'),null);
 run("go('staff')");assert.equal(run('location.redirect'),'/staff/#staff');run("location.pathname='/staff/';go('staff')");assert.equal(run('state.page'),'login');
 run("state.user={id:1,name:'Chef',role:'chef'};go('reports')");assert.equal(run('state.page'),'orders');
 run("go('desk')");assert.equal(run('state.page'),'orders');
