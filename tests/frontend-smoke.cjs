@@ -1,0 +1,23 @@
+const {readFileSync}=require('node:fs');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+const elements=new Map();
+const element=key=>{if(!elements.has(key))elements.set(key,{textContent:'',innerHTML:'',style:{},value:'',hidden:false,classList:{toggle(){}},setAttribute(){}});return elements.get(key)};
+const calls=[];
+const context=vm.createContext({console,URL,Date,crypto:require('node:crypto').webcrypto,setTimeout:()=>0,clearTimeout(){},confirm:()=>true,history:{replaceState(){}},location:{hash:'',reload(){}},window:{addEventListener(){}},document:{querySelector:element,querySelectorAll:()=>[],body:{classList:{toggle(){}}},addEventListener(){}},fetch:async(url,options)=>{calls.push({url,options});let data=url==='/api/auth/me'?{user:null,csrf:'initial-token'}:url==='/api/auth/logout'?{ok:true,csrf:'fresh-token'}:{categories:[],products:[],tables:[]};return {ok:true,status:200,text:async()=>JSON.stringify(data)}}});
+const run=code=>vm.runInContext(code,context);
+(async()=>{
+run(readFileSync('public/app.js','utf8'));
+await new Promise(resolve=>setImmediate(resolve));
+assert.match(element('#app').innerHTML,/Sign in to your workspace/);
+run("go('staff')");assert.equal(run('state.page'),'login');
+run("state.user={id:1,name:'Chef',role:'chef'};go('reports')");assert.equal(run('state.page'),'manage');
+run("go('menu')");assert.equal(run('state.page'),'manage');
+run("state.user={id:1,name:'Owner',role:'owner'};state.cart={5:30};add(5);qty(5,1)");assert.equal(run('state.cart[5]'),30);
+run("state.orders=[{id:1,status:'new',created_at:'2026-10-28',items:[],customer_name:'<script>',notes:'No nuts <b>',total:100}]");
+const orders=run('ordersPage()');assert.match(orders,/&lt;script&gt;/);assert.match(orders,/No nuts &lt;b&gt;/);assert.match(orders,/Cancelled/);
+await run('logout()');assert.equal(run('state.user'),null);assert.equal(run('state.csrf'),'fresh-token');assert.equal(run('Object.keys(state.cart).length'),0);
+await run("post('/auth/login',{email:'x',password:'y'})");assert.equal(calls.at(-1).options.headers['X-CSRF-Token'],'fresh-token');
+run("state.user={id:1,name:'Owner',role:'owner'};go('account')");assert.match(element('#app').innerHTML,/Confirm new password/);
+console.log('PASS: signed-out routing, role guards, quantity limits, escaped order notes, logout/login CSRF continuity and account screen');
+})().catch(err=>{console.error(err);process.exit(1)});
