@@ -44,8 +44,22 @@ try {
   json_response(['user'=>$u,'csrf'=>csrf_token()]);
  }
  if($route==='auth/logout' && $method==='POST'){
-  $_SESSION=[];session_destroy();setcookie(session_name(),'',time()-3600,'/');
-  json_response(['ok'=>true]);
+  $_SESSION=[];session_regenerate_id(true);
+  json_response(['ok'=>true,'csrf'=>csrf_token()]);
+ }
+ if($route==='auth/password' && $method==='POST'){
+  $u=current_user();if(!$u)fail('Login required',401);$d=request_data();
+  $current=$d['current_password']??'';$password=$d['password']??'';
+  if(!is_string($current)||!is_string($password)||strlen($password)<12||strlen($password)>72)fail('Use a new password of 12–72 bytes.');
+  $now=time();if($now-(int)($_SESSION['password_attempt_at']??0)>900){$_SESSION['password_attempt_count']=0;$_SESSION['password_attempt_at']=$now;}
+  if((int)($_SESSION['password_attempt_count']??0)>=8)fail('Too many password attempts. Try again in 15 minutes.',429);
+  $_SESSION['password_attempt_count']=(int)($_SESSION['password_attempt_count']??0)+1;
+  $hash=query('SELECT password_hash FROM users WHERE id=?',[$u['id']])->fetchColumn();
+  if(!password_verify($current,$hash))fail('Current password is incorrect.',400);
+  query('UPDATE users SET password_hash=? WHERE id=?',[password_hash($password,PASSWORD_DEFAULT),$u['id']]);
+  $_SESSION['password_attempt_count']=0;session_regenerate_id(true);$_SESSION['csrf']=bin2hex(random_bytes(32));
+  audit((int)$u['id'],'staff.password','user',$u['id']);
+  json_response(['ok'=>true,'csrf'=>csrf_token()]);
  }
  if($route==='menu' && $method==='GET'){
   require_permission('orders:view');
@@ -155,7 +169,7 @@ try {
   $u=require_permission('*');$d=request_data();
   $name=trim_text($d['name']??'',120);$email=strtolower(trim_text($d['email']??'',190));
   $role=$d['role']??'';$password=$d['password']??'';
-  if(!$name||!filter_var($email,FILTER_VALIDATE_EMAIL)||!is_string($password)||strlen($password)<12||!in_array($role,['owner','manager','chef','waiter','staff'],true))fail('Invalid staff details');
+  if(!$name||!filter_var($email,FILTER_VALIDATE_EMAIL)||!is_string($password)||strlen($password)<12||strlen($password)>72||!in_array($role,['owner','manager','chef','waiter','staff'],true))fail('Invalid staff details');
   $permissions=$d['permissions']??[];
   if(!is_array($permissions)||array_is_list($permissions)&&count($permissions)>0)fail('Invalid permissions');
   $hash=password_hash($password,PASSWORD_DEFAULT);
@@ -172,6 +186,12 @@ try {
   if($uid===(int)$u['id'] && (!$active||$role!=='owner'))fail('Cannot remove your own owner access');
   $permissions=$d['permissions']??(json_decode((string)$target['permissions'],true)?:[]);
   if(!is_array($permissions)||array_is_list($permissions)&&count($permissions)>0)fail('Invalid permissions');
+  if(array_key_exists('password',$d)){
+   if($uid===(int)$u['id'])fail('Use your account page to change your own password.');
+   if(!is_string($d['password'])||strlen($d['password'])<12||strlen($d['password'])>72)fail('Password must be 12–72 bytes.');
+   query('UPDATE users SET password_hash=? WHERE id=?',[password_hash($d['password'],PASSWORD_DEFAULT),$uid]);
+   audit((int)$u['id'],'staff.password.reset','user',$uid);
+  }
   query('UPDATE users SET role=?,active=?,permissions=? WHERE id=?',[$role,(int)$active,json_encode((object)$permissions),$uid]);
   audit((int)$u['id'],'staff.update','user',$uid);
   json_response(['staff'=>query('SELECT id,name,email,role,active,permissions FROM users WHERE id=?',[$uid])->fetch()]);
