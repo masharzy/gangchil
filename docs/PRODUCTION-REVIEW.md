@@ -1,5 +1,9 @@
 # Restaurant workflow review
 
+## Customer-facing correction
+The restaurant tablet is for customers, not a staff-only order desk. `/` now opens a public menu with dish selection, order review, table/takeaway choice and a confirmation number. No customer account is required. Staff operations live at `/staff/` with separate session cookies scoped to that path. Customer checkout creates pending-cash orders only; staff retain payment, preparation and management controls. Anonymous checkout uses CSRF, authoritative database prices, quantity validation, transaction/idempotency handling and a per-session burst limit. The staff order desk remains available inside the staff workspace.
+
+
 ## Workspace structure
 - Remove the fixed Menu/Cart/Orders/Manage bottom bar. Use a grouped desktop sidebar and a mobile navigation drawer with Escape and keyboard focus handling.
 - Give owners/managers an overview, chefs the kitchen queue and waiters the ready-to-serve queue.
@@ -9,7 +13,7 @@
 
 ## Fixed in this change
 - Replace the bare login form with a responsive staff sign-in screen, labelled fields, password visibility and persistent inline errors.
-- Explain account provisioning and password recovery. This is a staff-only POS: owners create accounts; there is no customer/public registration.
+- Explain account provisioning and password recovery. Customer ordering does not need an account; owners provision staff accounts for the separate protected workspace.
 - Hide signed-out navigation and guard role-specific routes. Kitchen staff start on Orders.
 - Preserve CSRF continuity across logout and subsequent login; clear in-memory order/cart state on logout or expired login.
 - Add self-service password changes with current-password verification, session ID/token rotation and a session-based attempt limit.

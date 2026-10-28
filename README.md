@@ -5,12 +5,14 @@ HTML + CSS + Vanilla JavaScript + PHP 8.1+ + MySQL/MariaDB.
 No Node.js, PostgreSQL, Socket.IO or VPS needed for cheap shared hosting.
 
 ## Cash-only restaurant workflow
-1. Only staff with a login can take orders on the one restaurant tablet.
-2. Tablet creates order (pending_payment).
-3. Manager confirms physical cash receipt (new).
-4. Chef starts preparation (preparing), marks ready (ready).
-5. Waiter marks served (served).
-6. Staff prints paid order receipt on an 80mm thermal printer using the tablet print service.
+1. Customers open the restaurant tablet at `/` and browse the menu without signing in.
+2. Customers review their items, choose a table or takeaway, and submit an unpaid order.
+3. Staff sign in separately at `/staff/`; staff and customer sessions use different cookies, so opening the customer menu does not expose a logged-in staff workspace.
+4. Tablet creates order (pending_payment).
+5. Manager confirms physical cash receipt (new).
+6. Chef starts preparation (preparing), marks ready (ready).
+7. Waiter marks served (served).
+8. Staff prints paid order receipt on an 80mm thermal printer using the tablet print service.
 
 Uses database transactions, authoritative menu prices, request tokens to prevent duplicate checkout, audit logs and granular permissions.
 
@@ -41,7 +43,7 @@ Requirements: PHP 8.1+, PDO MySQL, mbstring, MySQL or MariaDB, HTTPS and .htacce
 5. Copy private/config.example.php to private/config.php. Set DB_HOST, DB_NAME, DB_USER, DB_PASSWORD and a long random INSTALL_TOKEN. Keep config.php private.
 6. Visit https://your-domain.com/install.php, enter matching INSTALL_TOKEN and create the first Owner login.
 7. Delete public_html/install.php after successful setup.
-8. Visit https://your-domain.com/#login and sign in. Add products, staff and test payment and receipt workflows.
+8. Visit https://your-domain.com/staff/ and sign in. Add products, staff and test payment and receipt workflows.
 
 ## Real-time order updates: Pusher Channels + manual Refresh (no polling)
 - Server is still **PHP + MySQL** on standard cheap shared hosting. No Node.js, WebSocket server or VPS is needed.
@@ -88,3 +90,6 @@ Run install.php to create the first owner. Render Free sleeps on inactivity, so 
 ## Production checklist
 Enable HTTPS; never commit private/config.php; ensure daily external backups and restore testing; confirm PHP worker/entry-process limits with shared-host provider; test realistic tablet-to-kitchen flow and print on actual hardware.
 This is a source implementation, not a verified live deployment. PHP syntax and JS syntax need CI checks; real MySQL and end-to-end test are still required.
+
+## Customer tablet and staff workspace
+The website root is the public customer menu. `/staff/` serves the separate protected workspace; `/staff/api/` uses a staff-only session cookie scoped to `/staff/`. Public APIs allow menu reads, CSRF session bootstrap and creating pending-cash orders only. Public visitors cannot list orders, confirm cash, change the menu or manage staff. Paid receipts are available to authenticated staff at `/staff/receipt.php`. No database migration is required for this change. Existing staff must sign in again after the cookie separation. Test both surfaces before leaving the tablet with customers.

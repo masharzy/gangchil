@@ -5,9 +5,10 @@ else require_once __DIR__.'/config.env.php';
 ini_set('display_errors', '0');
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
-session_name('gangchil_session');
+define('STAFF_SURFACE', str_starts_with((string)(parse_url($_SERVER['REQUEST_URI']??'/',PHP_URL_PATH)?:'/'), '/staff/'));
+session_name(STAFF_SURFACE?'gangchil_staff_session':'gangchil_customer_session');
 session_set_cookie_params([
- 'lifetime'=>0,'path'=>'/','secure'=>!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
+ 'lifetime'=>0,'path'=>STAFF_SURFACE?'/staff/':'/','secure'=>!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
  'httponly'=>true,'samesite'=>'Strict'
 ]);
 session_start();

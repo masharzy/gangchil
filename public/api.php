@@ -8,6 +8,7 @@ $route=trim((string)($_GET['route']??''),'/');
 $method=$_SERVER['REQUEST_METHOD']??'GET';
 
 try {
+ if(!STAFF_SURFACE&&!in_array($route,['health','auth/me','menu','customer/orders'],true))fail('Staff sign-in required',401);
  if($route==='health' && $method==='GET'){
   query('SELECT 1');json_response(['ok'=>true]);
  }
@@ -62,7 +63,6 @@ try {
   json_response(['ok'=>true,'csrf'=>csrf_token()]);
  }
  if($route==='menu' && $method==='GET'){
-  require_permission('orders:view');
   json_response([
    'categories'=>query('SELECT id,name,sort_order,active FROM categories WHERE active=1 ORDER BY sort_order,id')->fetchAll(),
    'products'=>query('SELECT id,name,description,price,image_url,category_id,available FROM products ORDER BY id DESC')->fetchAll(),
@@ -83,8 +83,9 @@ try {
   }
   json_response(['orders'=>$orders]);
  }
- if($route==='orders' && $method==='POST'){
-  $u=require_permission('orders:create');$d=request_data();
+ if(in_array($route,['orders','customer/orders'],true) && $method==='POST'){
+  $customerOrder=$route==='customer/orders';
+  $u=$customerOrder?null:require_permission('orders:create');$d=request_data();
   $token=trim_text($d['request_token']??'',80);
   if(!preg_match('/^[a-zA-Z0-9_-]{20,80}$/',$token))fail('Invalid request token');
   $rawItems=$d['items']??null;
@@ -104,6 +105,11 @@ try {
   try {
    $existing=query('SELECT id,status,total,created_at FROM orders WHERE request_token=?',[$token])->fetch();
    if($existing){$db->commit();json_response(['order'=>$existing,'duplicate'=>true]);}
+   if($customerOrder){
+    $window=$_SESSION['customer_order_window']??['start'=>time(),'count'=>0];
+    if(time()-(int)$window['start']>=60)$window=['start'=>time(),'count'=>0];
+    if((int)$window['count']>=12)fail('Please wait a moment before placing another order.',429);
+   }
    if($table!==null && !query('SELECT id FROM dining_tables WHERE id=? AND active=1',[$table])->fetch())fail('Table not available');
    $ids=array_keys($quantities);$holder=implode(',',array_fill(0,count($ids),'?'));
    $products=query('SELECT id,name,price,available FROM products WHERE id IN ('.$holder.') ORDER BY id FOR UPDATE',$ids)->fetchAll();
@@ -120,7 +126,8 @@ try {
     $q=$quantities[(int)$p['id']];$line=number_format(((int)round((float)$p['price']*100)*$q)/100,2,'.','');
     query('INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES(?,?,?,?,?,?)',[$orderId,$p['id'],$p['name'],$q,$p['price'],$line]);
    }
-   audit((int)$u['id'],'order.create','order',$orderId);$db->commit();
+   audit($customerOrder?null:(int)$u['id'],$customerOrder?'customer.order.create':'order.create','order',$orderId);$db->commit();
+   if($customerOrder){$window['count']++;$_SESSION['customer_order_window']=$window;}
    realtime_publish('order-created');
    json_response(['order'=>['id'=>$orderId,'status'=>'pending_payment','total'=>$total]],201);
   } catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
