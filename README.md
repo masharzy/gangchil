@@ -6,7 +6,7 @@ No Node.js, PostgreSQL, Socket.IO or VPS needed for cheap shared hosting.
 
 ## Cash-only restaurant workflow
 1. Customers open the restaurant tablet at `/` and browse the menu without signing in.
-2. Customers review their items, choose a table or takeaway, and submit an unpaid order.
+2. Customers review their items, review their choices and submit an unpaid order.
 3. Staff sign in separately at `/staff/`; staff and customer sessions use different cookies, so opening the customer menu does not expose a logged-in staff workspace.
 4. Tablet creates order (pending_payment).
 5. Manager confirms physical cash receipt (new).
@@ -26,7 +26,7 @@ Uses database transactions, authoritative menu prices, request tokens to prevent
 2. Download the ready-made ZIP by opening **GitHub → Actions → Build InfinityFree upload package → latest successful run → Artifacts → gangchil-infinityfree-htdocs**. Unzip that artifact; inside is `gangchil-infinityfree.zip`, containing files meant to be uploaded **directly to the website's `htdocs/`**. Avoid uploading another nested `htdocs/` directory.
 3. The InfinityFree File Manager can upload ZIP and forward-upload extracted files; if it fails, extract the inner ZIP locally and transfer all contents using FTP/FileZilla. Make sure `index.html`, `api.php`, `install.php`, `.htaccess`, and `private/` end up directly under `htdocs/`.
 4. In **`htdocs/private/`**, copy `config.example.php` to `config.php`. Edit **DB_HOST, DB_NAME, DB_USER, DB_PASSWORD** with your hosting account's MySQL details; **INSTALL_TOKEN** must be a unique random string with 24+ characters. `private/.htaccess` is in the package and must remain present to block public access to secrets; test `https://<domain>/private/config.php` returns **403 Forbidden** before creating an account.
-5. On your domain open `https://<domain>/install.php`, enter INSTALL_TOKEN and create the first Owner. The installer will automatically import the protected `private/mysql.sql` schema and create initial categories/tables; no phpMyAdmin SQL import is required for this packaging format.
+5. On your domain open `https://<domain>/install.php`, enter INSTALL_TOKEN and create the first Owner. The installer will automatically import the protected `private/mysql.sql` schema and create initial categories; no phpMyAdmin SQL import is required for this packaging format.
 6. Log in as Owner. Add product details and other staff, create an order, cash-confirm it, move it through Chef → Ready → Served, and test the paid 80mm receipt page.
 7. Optional Pusher Channels WebSocket notifications: configure `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER` in the same private config.php; PHP sends outbound HTTPS events on port 443. Check the Live indicator on two devices. Without Pusher, **↻ Refresh** loads just the list with no whole-page reload. **No background polling**.
 8. Remove `install.php` from hosting once installation is complete. Export regular offsite MySQL backups.
@@ -73,7 +73,7 @@ Use Railway Trial/Free to run **both** the real PHP application and a **MySQL se
    - `INSTALL_TOKEN=` a long randomly generated secret (32+ characters)
    - Optional Pusher values: `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`.
 4. Set PHP app **health check** to `/health` and generate a Railway public domain. The MySQL service stays **private**.
-5. Open `https://<app-domain>/install.php`; enter the secret installation token, owner name/email/password (12+ chars) to automatically import the included MySQL schema and create the first owner, default categories and tables. Manual SQL import is not required on this Docker demo.
+5. Open `https://<app-domain>/install.php`; enter the secret installation token, owner name/mobile/password (12+ chars) to automatically import the included MySQL schema and create the first owner, default categories. Manual SQL import is not required on this Docker demo.
 6. Sign in, add menu items and staff accounts, then verify tablet order → manager cash confirmation → chef preparation → waiter served → paid receipt print.
 7. Delete or restrict the installer for long-term production use. After first Owner creation, it blocks additional installs automatically.
 8. Store credentials **only in Railway service variables**. Never add them to GitHub, screenshots or chat messages.
@@ -93,3 +93,6 @@ This is a source implementation, not a verified live deployment. PHP syntax and 
 
 ## Customer tablet and staff workspace
 The website root is the public customer menu. `/staff/` serves the separate protected workspace; `/staff/api/` uses a staff-only session cookie scoped to `/staff/`. Public APIs allow menu reads, CSRF session bootstrap and creating pending-cash orders only. Public visitors cannot list orders, confirm cash, change the menu or manage staff. Paid receipts are available to authenticated staff at `/staff/receipt.php`. No database migration is required for this change. Existing staff must sign in again after the cookie separation. Test both surfaces before leaving the tablet with customers.
+
+## Bangladesh mobile sign-in
+Staff accounts now use a unique Bangladeshi mobile number and password. Local 01XXXXXXXXX, +880 and Bengali-digit inputs are normalized to the same 11-digit number. The existing owner must save a mobile number in Your account while still signed in; owners can assign numbers to existing staff in Staff & access. The additive compatibility migration retains historical records and legacy email columns but email is not used for authentication or displayed. Existing dining-table records are retained as history; active table routes, selections, permissions and receipt labels are removed. New installations do not create dining tables.

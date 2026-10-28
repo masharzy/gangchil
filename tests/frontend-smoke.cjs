@@ -9,7 +9,7 @@ const run=code=>vm.runInContext(code,context);
 (async()=>{
 run(readFileSync('public/app.js','utf8'));
 await new Promise(resolve=>setImmediate(resolve));
-assert.match(element('#app').innerHTML,/Search menu/);assert.doesNotMatch(element('#app').innerHTML,/customer-intro|<h1/);assert.doesNotMatch(element('#app').innerHTML,/Sign in to your workspace/);assert.equal(run('state.user'),null);
+assert.match(element('#app').innerHTML,/Search menu/);assert.doesNotMatch(element('#app').innerHTML,/customer-intro|<h1|Staff access|Where will you enjoy/);assert.match(element('#customerHeader').innerHTML,/GANGCHIL/);assert.doesNotMatch(element('#app').innerHTML,/Sign in to your workspace/);assert.equal(run('state.user'),null);
 run("go('staff')");assert.equal(run('location.redirect'),'/staff/#staff');run("location.pathname='/staff/';go('staff')");assert.equal(run('state.page'),'login');
 run("state.user={id:1,name:'Chef',role:'chef'};go('reports')");assert.equal(run('state.page'),'orders');
 run("go('desk')");assert.equal(run('state.page'),'orders');
@@ -17,20 +17,21 @@ run("state.user={id:1,name:'Owner',role:'owner'};state.cart={5:30};add(5);qty(5,
 run("state.orders=[{id:1,status:'new',created_at:'2026-10-28',items:[],customer_name:'<script>',notes:'No nuts <b>',total:100}]");
 run("state.filterOrder='all'");const orders=run('ordersPage()');assert.match(orders,/&lt;script&gt;/);assert.match(orders,/No nuts &lt;b&gt;/);assert.match(orders,/Cancelled/);
 await run('logout()');assert.equal(run('state.user'),null);assert.equal(run('state.csrf'),'fresh-token');assert.equal(run('Object.keys(state.cart).length'),0);
-await run("post('/auth/login',{email:'x',password:'y'})");assert.equal(calls.at(-1).options.headers['X-CSRF-Token'],'fresh-token');
+await run("post('/auth/login',{phone:'01712345678',password:'y'})");assert.equal(calls.at(-1).options.headers['X-CSRF-Token'],'fresh-token');
 run("state.user={id:1,name:'Owner',role:'owner'};go('account')");assert.match(element('#app').innerHTML,/Confirm new password/);
 await new Promise(resolve=>setImmediate(resolve));
-run("state.user={id:1,name:'Owner',role:'owner'};state.menu={products:[{id:5,name:'Kabsa',price:250,category_id:1,available:true}],categories:[{id:1,name:'Rice'}],tables:[{id:1,name:'Table 01'}]};state.staff=[{id:2,name:'Waiter',email:'w@example.com',role:'waiter',active:true}];state.resetStaffId=2;state.orders=[];state.ordersLoaded=true");
+run("state.user={id:1,name:'Owner',role:'owner'};state.menu={products:[{id:5,name:'Kabsa',price:250,category_id:1,available:true}],categories:[{id:1,name:'Rice'}],tables:[{id:1,name:'Table 01'}]};state.staff=[{id:2,name:'Waiter',phone:'01712345678',role:'waiter',active:true}];state.resetStaffId=2;state.orders=[];state.ordersLoaded=true");
 assert.equal(run('startPage()'),'home');
-for(const page of ['homePage','productsPage','categoriesPage','tablesPage','staffPage'])assert.doesNotMatch(run(page+'()'),/<form/,page+' must be a destination, not a wall of forms');
+for(const page of ['homePage','productsPage','categoriesPage','staffPage'])assert.doesNotMatch(run(page+'()'),/<form/,page+' must be a destination, not a wall of forms');
 run('nav()');assert.match(element('#sidebar').innerHTML,/Menu items/);assert.doesNotMatch(element('#sidebar').innerHTML,/>Cart|>Manage/);
+assert.doesNotMatch(run('loginPage()'),/type="email"|Email address/);assert.match(run('loginPage()'),/Bangladeshi mobile/);assert.doesNotMatch(run('staffFormPage()'),/type="email"/);assert.doesNotMatch(run('homePage()'),/Dining tables/);
 const handlers=[];
-for(const page of ['homePage','menuPage','customerMenuPage','customerCartPage','productsPage','productFormPage','categoriesPage','categoryFormPage','tablesPage','tableFormPage','staffPage','staffFormPage','staffResetPage','ordersPage','accountPage','loginPage','reportsPage','auditPage']){
+for(const page of ['homePage','menuPage','customerMenuPage','customerCartPage','productsPage','productFormPage','categoriesPage','categoryFormPage','staffPage','staffFormPage','staffResetPage','ordersPage','accountPage','loginPage','reportsPage','auditPage']){
 const html=run(page+'()');
 for(const match of html.matchAll(/(?:onclick|onsubmit|oninput|onchange)="([^"]*)"/g))handlers.push(match[1]);
 }
 for(const handler of handlers)new Function('event',handler.replace(/&quot;/g,'"').replace(/&#39;/g,"'").replace(/&amp;/g,'&'));
-run("location.pathname='/';state.user=null;state.page='menu';state.cart={5:1};state.draft={table:'1',customer:'A & B',notes:'No nuts'};qty(5,1)");
+run("location.pathname='/';state.user=null;state.page='menu';state.cart={5:1};state.draft={customer:'A & B',notes:'No nuts'};qty(5,1)");
 assert.equal(run('state.draft.notes'),'No nuts');assert.match(run('menuPage()'),/Current order/);assert.doesNotMatch(run('menuPage()'),/View Cart/);
 context.fetch=async()=>{throw Error('Connection lost')};
 await run('place({preventDefault(){}})');const token=run('state.requestToken');assert.ok(token);run('add(5)');assert.equal(run('state.cart[5]'),2);

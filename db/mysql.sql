@@ -3,7 +3,7 @@
 SET NAMES utf8mb4;
 CREATE TABLE IF NOT EXISTS users (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(120) NOT NULL, email VARCHAR(190) NOT NULL UNIQUE,
+ name VARCHAR(120) NOT NULL, phone VARCHAR(11) NOT NULL UNIQUE,
  password_hash VARCHAR(255) NOT NULL, role ENUM('owner','manager','chef','waiter','staff') NOT NULL,
  active TINYINT(1) NOT NULL DEFAULT 1, permissions JSON NULL,
  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -19,21 +19,16 @@ CREATE TABLE IF NOT EXISTS products (
  available TINYINT(1) NOT NULL DEFAULT 1, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  INDEX(category_id), CONSTRAINT fk_products_category FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-CREATE TABLE IF NOT EXISTS dining_tables (
- id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
- name VARCHAR(100) NOT NULL UNIQUE, active TINYINT(1) NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS orders (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
  request_token VARCHAR(80) NOT NULL UNIQUE,
- table_id BIGINT UNSIGNED NULL, customer_name VARCHAR(100) NOT NULL DEFAULT '',
+ customer_name VARCHAR(100) NOT NULL DEFAULT '',
  notes VARCHAR(500) NOT NULL DEFAULT '',
  status ENUM('pending_payment','new','preparing','ready','served','cancelled') NOT NULL DEFAULT 'pending_payment',
  total DECIMAL(12,2) NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
  paid_at DATETIME NULL, started_at DATETIME NULL, ready_at DATETIME NULL, served_at DATETIME NULL, cancelled_at DATETIME NULL,
  paid_by BIGINT UNSIGNED NULL, started_by BIGINT UNSIGNED NULL, ready_by BIGINT UNSIGNED NULL, served_by BIGINT UNSIGNED NULL, cancelled_by BIGINT UNSIGNED NULL,
- INDEX idx_status_created(status,created_at), INDEX idx_created(created_at), INDEX idx_paid_at(paid_at),
- CONSTRAINT fk_orders_table FOREIGN KEY(table_id) REFERENCES dining_tables(id) ON DELETE SET NULL
+ INDEX idx_status_created(status,created_at), INDEX idx_created(created_at), INDEX idx_paid_at(paid_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 CREATE TABLE IF NOT EXISTS order_items (
  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,

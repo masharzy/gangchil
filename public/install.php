@@ -10,10 +10,10 @@ try {
  if($_SERVER['REQUEST_METHOD']==='POST'){
   if(!hash_equals(csrf_token(),(string)($_POST['csrf']??'')))throw new RuntimeException('Invalid security token. Reload page.');
   $token=(string)($_POST['install_token']??'');
-  $name=trim_text($_POST['name']??'',120);$email=strtolower(trim_text($_POST['email']??'',190));
+  $name=trim_text($_POST['name']??'',120);$phone=bd_phone($_POST['phone']??'');
   $pass=(string)($_POST['password']??'');
   if(strlen(INSTALL_TOKEN)<24 || !hash_equals(INSTALL_TOKEN,$token))throw new RuntimeException('Invalid installation token.');
-  if(!$name || !filter_var($email,FILTER_VALIDATE_EMAIL) || strlen($pass)<12)throw new RuntimeException('Valid name, email and 12+ character password required.');
+  if(!$name || $phone===null || strlen($pass)<12)throw new RuntimeException('Valid name, Bangladeshi mobile number and 12+ character password required.');
   $db=database();
   // Docker demo can bootstrap its schema automatically after verifying INSTALL_TOKEN.
   // Shared cPanel deployments can still import db/mysql.sql with phpMyAdmin.
@@ -31,13 +31,13 @@ try {
   } elseif(!$hasUsers){
    throw new RuntimeException('First import db/mysql.sql with phpMyAdmin, then run the installer.');
   }
+  ensure_phone_schema();
   if((int)query('SELECT COUNT(*) FROM users')->fetchColumn()>0)throw new RuntimeException('Owner already installed.');
   $db->beginTransaction();
   try {
-   query('INSERT INTO users(name,email,password_hash,role,permissions) VALUES(?,?,?,?,?)',[$name,$email,password_hash($pass,PASSWORD_DEFAULT),'owner','{}']);
+   query('INSERT INTO users(name,phone,password_hash,role,permissions) VALUES(?,?,?,?,?)',[$name,$phone,password_hash($pass,PASSWORD_DEFAULT),'owner','{}']);
    foreach(['Kabsa','Rice & Biryani','Chicken','Drinks'] as $cat)query('INSERT INTO categories(name) VALUES(?)',[$cat]);
-   for($i=1;$i<=12;$i++)query('INSERT INTO dining_tables(name) VALUES(?)',['Table '.$i]);
-   $db->commit();header('Location: /#login');exit;
+   $db->commit();header('Location: /staff/');exit;
   } catch(Throwable $e) {if($db->inTransaction())$db->rollBack();throw $e;}
  }
 } catch(Throwable $e) {$error=$e->getMessage();}
@@ -51,7 +51,7 @@ function h(string $value): string {return htmlspecialchars($value,ENT_QUOTES|ENT
 <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
 <label>Installation token<input type="password" name="install_token" required></label>
 <label>Owner name<input name="name" maxlength="120" required></label>
-<label>Owner email<input type="email" name="email" required></label>
+<label>Owner mobile number<input type="tel" name="phone" inputmode="tel" placeholder="01XXXXXXXXX" maxlength="20" required></label>
 <label>Owner password (12+ characters)<input type="password" name="password" minlength="12" required></label>
 <button type="submit">Create Owner Account</button></form>
 </main></body></html>

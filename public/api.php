@@ -8,6 +8,7 @@ $route=trim((string)($_GET['route']??''),'/');
 $method=$_SERVER['REQUEST_METHOD']??'GET';
 
 try {
+ ensure_phone_schema();
  if(!STAFF_SURFACE&&!in_array($route,['health','auth/me','menu','customer/orders'],true))fail('Staff sign-in required',401);
  if($route==='health' && $method==='GET'){
   query('SELECT 1');json_response(['ok'=>true]);
@@ -31,11 +32,12 @@ try {
   catch(InvalidArgumentException $e){fail('Invalid realtime request',403);}
  }
  if($route==='auth/login' && $method==='POST'){
-  $d=request_data();$email=strtolower(trim_text($d['email']??'',190));$password=(string)($d['password']??'');
+  $d=request_data();$phone=bd_phone($d['phone']??'');$password=(string)($d['password']??'');
+  if($phone===null)fail('Enter a valid Bangladeshi mobile number.');
   $now=time();$attempt=(int)($_SESSION['failed_login_count']??0);$start=(int)($_SESSION['failed_login_at']??0);
   if($now-$start>900){$attempt=0;$start=$now;}
   if($attempt>=8)fail('Too many login attempts. Try again later.',429);
-  $s=query('SELECT id,name,email,role,active,password_hash,permissions FROM users WHERE email=? LIMIT 1',[$email]);$u=$s->fetch();
+  $s=query('SELECT id,name,phone,role,active,password_hash,permissions FROM users WHERE phone=? LIMIT 1',[$phone]);$u=$s->fetch();
   if(!$u || !$u['active'] || !password_verify($password,$u['password_hash'])){
    $_SESSION['failed_login_count']=$attempt+1;$_SESSION['failed_login_at']=$start;fail('Invalid credentials',401);
   }
@@ -47,6 +49,14 @@ try {
  if($route==='auth/logout' && $method==='POST'){
   $_SESSION=[];session_regenerate_id(true);
   json_response(['ok'=>true,'csrf'=>csrf_token()]);
+ }
+ if($route==='auth/phone' && $method==='POST'){
+  $u=current_user();if(!$u)fail('Login required',401);$d=request_data();$phone=bd_phone($d['phone']??'');
+  if($phone===null)fail('Enter a valid Bangladeshi mobile number.');
+  $password=$d['current_password']??'';
+  if(!is_string($password)||!password_verify($password,(string)query('SELECT password_hash FROM users WHERE id=?',[$u['id']])->fetchColumn()))fail('Current password is incorrect.');
+  query('UPDATE users SET phone=? WHERE id=?',[$phone,$u['id']]);
+  audit((int)$u['id'],'staff.phone','user',$u['id']);json_response(['user'=>current_user()]);
  }
  if($route==='auth/password' && $method==='POST'){
   $u=current_user();if(!$u)fail('Login required',401);$d=request_data();
@@ -65,15 +75,14 @@ try {
  if($route==='menu' && $method==='GET'){
   json_response([
    'categories'=>query('SELECT id,name,sort_order,active FROM categories WHERE active=1 ORDER BY sort_order,id')->fetchAll(),
-   'products'=>query('SELECT id,name,description,price,image_url,category_id,available FROM products ORDER BY id DESC')->fetchAll(),
-   'tables'=>query('SELECT id,name FROM dining_tables WHERE active=1 ORDER BY id')->fetchAll()
+   'products'=>query('SELECT id,name,description,price,image_url,category_id,available FROM products ORDER BY id DESC')->fetchAll()
   ]);
  }
  if($route==='orders' && $method==='GET'){
   require_permission('orders:view');$status=(string)($_GET['status']??'');
   $valid=['','pending_payment','new','preparing','ready','served','cancelled'];
   if(!in_array($status,$valid,true))fail('Invalid status');
-  $orders=query('SELECT o.*,t.name AS table_name FROM orders o LEFT JOIN dining_tables t ON t.id=o.table_id WHERE (?="" OR o.status=?) ORDER BY o.created_at DESC,o.id DESC LIMIT 150',[$status,$status])->fetchAll();
+  $orders=query('SELECT o.* FROM orders o WHERE (?="" OR o.status=?) ORDER BY o.created_at DESC,o.id DESC LIMIT 150',[$status,$status])->fetchAll();
   if($orders){
    $ids=array_map(fn($o)=>(int)$o['id'],$orders);
    $holders=implode(',',array_fill(0,count($ids),'?'));
@@ -98,8 +107,6 @@ try {
    $quantities[$pid]=($quantities[$pid]??0)+$qty;
    if($quantities[$pid]>100)fail('Too many items');
   }
-  $table=null;
-  if(!empty($d['table_id']))$table=integer_id($d['table_id']);
   $name=trim_text($d['customer_name']??'',100);$notes=trim_text($d['notes']??'',500);
   $db=database();$db->beginTransaction();
   try {
@@ -110,7 +117,6 @@ try {
     if(time()-(int)$window['start']>=60)$window=['start'=>time(),'count'=>0];
     if((int)$window['count']>=12)fail('Please wait a moment before placing another order.',429);
    }
-   if($table!==null && !query('SELECT id FROM dining_tables WHERE id=? AND active=1',[$table])->fetch())fail('Table not available');
    $ids=array_keys($quantities);$holder=implode(',',array_fill(0,count($ids),'?'));
    $products=query('SELECT id,name,price,available FROM products WHERE id IN ('.$holder.') ORDER BY id FOR UPDATE',$ids)->fetchAll();
    if(count($products)!==count($ids))fail('Product unavailable');
@@ -120,7 +126,7 @@ try {
     $totalCents+=(int)round((float)$p['price']*100)*$quantities[(int)$p['id']];
    }
    $total=number_format($totalCents/100,2,'.','');
-   query('INSERT INTO orders(request_token,table_id,customer_name,notes,total) VALUES(?,?,?,?,?)',[$token,$table,$name,$notes,$total]);
+   query('INSERT INTO orders(request_token,customer_name,notes,total) VALUES(?,?,?,?)',[$token,$name,$notes,$total]);
    $orderId=(int)$db->lastInsertId();
    foreach($products as $p){
     $q=$quantities[(int)$p['id']];$line=number_format(((int)round((float)$p['price']*100)*$q)/100,2,'.','');
@@ -170,19 +176,19 @@ try {
  }
  if($route==='staff' && $method==='GET'){
   require_permission('*');
-  json_response(['staff'=>query('SELECT id,name,email,role,active,permissions,created_at FROM users ORDER BY id')->fetchAll()]);
+  json_response(['staff'=>query('SELECT id,name,phone,role,active,permissions,created_at FROM users ORDER BY id')->fetchAll()]);
  }
  if($route==='staff' && $method==='POST'){
   $u=require_permission('*');$d=request_data();
-  $name=trim_text($d['name']??'',120);$email=strtolower(trim_text($d['email']??'',190));
+  $name=trim_text($d['name']??'',120);$phone=bd_phone($d['phone']??'');
   $role=$d['role']??'';$password=$d['password']??'';
-  if(!$name||!filter_var($email,FILTER_VALIDATE_EMAIL)||!is_string($password)||strlen($password)<12||strlen($password)>72||!in_array($role,['owner','manager','chef','waiter','staff'],true))fail('Invalid staff details');
+  if(!$name||$phone===null||!is_string($password)||strlen($password)<12||strlen($password)>72||!in_array($role,['owner','manager','chef','waiter','staff'],true))fail('Invalid staff details');
   $permissions=$d['permissions']??[];
   if(!is_array($permissions)||array_is_list($permissions)&&count($permissions)>0)fail('Invalid permissions');
   $hash=password_hash($password,PASSWORD_DEFAULT);
-  query('INSERT INTO users(name,email,password_hash,role,permissions) VALUES(?,?,?,?,?)',[$name,$email,$hash,$role,json_encode((object)$permissions)]);
+  query('INSERT INTO users(name,phone,password_hash,role,permissions) VALUES(?,?,?,?,?)',[$name,$phone,$hash,$role,json_encode((object)$permissions)]);
   $newId=(int)database()->lastInsertId();audit((int)$u['id'],'staff.create','user',$newId);
-  json_response(['staff'=>['id'=>$newId,'name'=>$name,'email'=>$email,'role'=>$role]],201);
+  json_response(['staff'=>['id'=>$newId,'name'=>$name,'phone'=>$phone,'role'=>$role]],201);
  }
  if(preg_match('#^staff/([1-9][0-9]*)$#',$route,$m) && $method==='PATCH'){
   $u=require_permission('*');$uid=integer_id($m[1]);$d=request_data();
@@ -193,15 +199,19 @@ try {
   if($uid===(int)$u['id'] && (!$active||$role!=='owner'))fail('Cannot remove your own owner access');
   $permissions=$d['permissions']??(json_decode((string)$target['permissions'],true)?:[]);
   if(!is_array($permissions)||array_is_list($permissions)&&count($permissions)>0)fail('Invalid permissions');
+  $newPhone=null;$newHash=null;
+  if(array_key_exists('phone',$d)){
+   if($uid===(int)$u['id'])fail('Use your account page to change your own login number.');
+   $newPhone=bd_phone($d['phone']);if($newPhone===null)fail('Enter a valid Bangladeshi mobile number.');
+  }
   if(array_key_exists('password',$d)){
    if($uid===(int)$u['id'])fail('Use your account page to change your own password.');
    if(!is_string($d['password'])||strlen($d['password'])<12||strlen($d['password'])>72)fail('Password must be 12–72 bytes.');
-   query('UPDATE users SET password_hash=? WHERE id=?',[password_hash($d['password'],PASSWORD_DEFAULT),$uid]);
-   audit((int)$u['id'],'staff.password.reset','user',$uid);
+   $newHash=password_hash($d['password'],PASSWORD_DEFAULT);
   }
-  query('UPDATE users SET role=?,active=?,permissions=? WHERE id=?',[$role,(int)$active,json_encode((object)$permissions),$uid]);
+  query('UPDATE users SET role=?,active=?,permissions=?,phone=COALESCE(?,phone),password_hash=COALESCE(?,password_hash) WHERE id=?',[$role,(int)$active,json_encode((object)$permissions),$newPhone,$newHash,$uid]);
   audit((int)$u['id'],'staff.update','user',$uid);
-  json_response(['staff'=>query('SELECT id,name,email,role,active,permissions FROM users WHERE id=?',[$uid])->fetch()]);
+  json_response(['staff'=>query('SELECT id,name,phone,role,active,permissions FROM users WHERE id=?',[$uid])->fetch()]);
  }
  if($route==='categories' && $method==='POST'){
   $u=require_permission('products:manage');$d=request_data();$name=trim_text($d['name']??'',120);
@@ -234,13 +244,6 @@ try {
   query('UPDATE products SET name=?,description=?,price=?,category_id=?,image_url=?,available=? WHERE id=?',[$name,$description,number_format((float)$price,2,'.',''),$cat,$image,(int)$available,$pid]);
   audit((int)$u['id'],'product.update','product',$pid);realtime_publish('menu');
   json_response(['product'=>query('SELECT * FROM products WHERE id=?',[$pid])->fetch()]);
- }
- if($route==='tables' && $method==='POST'){
-  $u=require_permission('tables:manage');$d=request_data();$name=trim_text($d['name']??'',100);
-  if(!$name)fail('Table name required');
-  query('INSERT INTO dining_tables(name) VALUES(?)',[$name]);$newId=(int)database()->lastInsertId();
-  audit((int)$u['id'],'table.create','table',$newId);realtime_publish('menu');
-  json_response(['table'=>['id'=>$newId,'name'=>$name]],201);
  }
  fail('Route not found',404);
 } catch(PDOException $e) {

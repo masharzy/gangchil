@@ -1,37 +1,11 @@
-# Restaurant workflow review
+# Current release: simplified menu and Bangladesh mobile sign-in
 
-## Customer-facing correction
-The restaurant tablet is for customers, not a staff-only order desk. `/` now opens a public menu with dish selection, order review, table/takeaway choice and a confirmation number. No customer account is required. Staff operations live at `/staff/` with separate session cookies scoped to that path. Customer checkout creates pending-cash orders only; staff retain payment, preparation and management controls. Anonymous checkout uses CSRF, authoritative database prices, quantity validation, transaction/idempotency handling and a per-session burst limit. The staff order desk remains available inside the staff workspace.
+The customer menu displays the logo and name above centred search/category controls, with one product per row. It has no public Staff access link. Staff use the direct `/staff/` URL.
 
+Dining-table features are removed from customer checkout, staff order entry, navigation, dashboard, order endpoints, receipts and new installations. Existing historical database columns and records are retained without destructive deletion.
 
-## Workspace structure
-- Remove the fixed Menu/Cart/Orders/Manage bottom bar. Use a grouped desktop sidebar and a mobile navigation drawer with Escape and keyboard focus handling.
-- Give owners/managers an overview, chefs the kitchen queue and waiters the ready-to-serve queue.
-- Split menu items, categories, tables, staff, reports and account settings into separate destinations. Add/edit/reset actions open dedicated forms; list pages are not long form collections.
-- Compose an order in one workspace: searchable menu plus a current-order panel on tablets; an in-page review shortcut on mobile. Draft table, customer and notes survive item quantity changes.
-- Show a persistent order confirmation. Preserve the checkout request token across ambiguous network failures and lock item edits until the retry resolves.
+Staff login, account creation, profile and access management use Bangladesh mobile numbers. Phone values are validated and normalized; old email identifiers are no longer accepted by login. An additive schema migration gives existing accounts nullable phone values until their owner assigns them. The current owner must save their own number using their authenticated account and current password before signing out. Staff accounts can be assigned numbers by an owner. No phone numbers are invented or copied from unrelated records.
 
-## Fixed in this change
-- Replace the bare login form with a responsive staff sign-in screen, labelled fields, password visibility and persistent inline errors.
-- Explain account provisioning and password recovery. Customer ordering does not need an account; owners provision staff accounts for the separate protected workspace.
-- Hide signed-out navigation and guard role-specific routes. Kitchen staff start on Orders.
-- Preserve CSRF continuity across logout and subsequent login; clear in-memory order/cart state on logout or expired login.
-- Add self-service password changes with current-password verification, session ID/token rotation and a session-based attempt limit.
-- Allow owners to reset other staff passwords. Default new staff role to staff rather than owner.
-- Lock form submissions until completion. Keep order refresh available after a failed request.
-- Show escaped customer names and kitchen notes, include cancelled orders in filters, and cap item quantities at the API's 30-per-line limit.
-- Prevent report/staff/audit responses from writing into a screen after navigation.
-- Improve touch targets, focus indicators, input font sizes and narrow-screen layouts.
+Checks include frontend regression tests, PHP syntax and Bangladesh phone normalization tests. Live browser checks cover public menu, checkout layout and the preserved authenticated owner account; no real order/payment/password change is submitted by these UI checks.
 
-## Remaining release blockers / verification
-- Real MySQL integration and live device testing: order creation → physical cash confirmation → preparation → ready → served → paid receipt. Verify two-device updates, reconnects, permissions and duplicate checkout recovery.
-- Login throttling currently uses the browser session, so it can be bypassed with a fresh cookie. Add a shared persistent rate limit before public production use.
-- Password resets do not revoke already-open sessions on other devices. Add a database-backed session version or revocable session records.
-- Browser printing is implemented; silent ESC/POS printing is not. Test the actual printer/tablet pairing.
-- Draft carts remain memory-only and are lost on reload. Network-ambiguous checkout locks item edits and retries with the same token; recovery after a full page reload still needs durable drafts.
-- Product editing now has a dedicated UI. Category/table editing and archiving still require backend endpoints and workflow validation.
-- Orders are limited to the latest 150; historical search/pagination is needed for larger operations.
-- Test backups and restores, HTTPS/cookie configuration, hosting limits and Pusher delivery on the actual host. InfinityFree remains a demonstration environment as documented in README.
-
-## Validation
-`node --check public/app.js`, `node tests/frontend-smoke.cjs`, and `git diff --check` pass locally. The regression suite exercises unauthenticated routing, role guards, quantity limits, escaped kitchen notes and logout/login CSRF continuity using a simulated API. It also verifies separate management destinations, inline form-handler syntax, draft retention and ambiguous-checkout retry. CI runs PHP syntax checks and the same frontend regression suite. Local PHP/MySQL and browser rendering were unavailable in this environment; these checks do not certify a live production deployment.
+Remaining production checks: end-to-end order/payment/kitchen/receipt hardware testing, durable login throttling, cross-device session revocation, durable cart recovery and historical order pagination.

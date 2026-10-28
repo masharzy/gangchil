@@ -45,7 +45,7 @@ function require_csrf(): void {
 }
 function current_user(): ?array {
  if(empty($_SESSION['uid']))return null;
- $stmt=query('SELECT id,name,email,role,active,permissions FROM users WHERE id=?',[(int)$_SESSION['uid']]);
+ $stmt=query('SELECT id,name,phone,role,active,permissions FROM users WHERE id=?',[(int)$_SESSION['uid']]);
  $user=$stmt->fetch();
  if(!$user || !$user['active']){unset($_SESSION['uid']);return null;}
  $user['permissions']=json_decode((string)($user['permissions']??'{}'),true)?:[];
@@ -54,7 +54,7 @@ function current_user(): ?array {
 function permissions_for(string $role): array {
  return match($role) {
  'owner'=>['*'],
- 'manager'=>['orders:view','orders:create','orders:pay','orders:cancel','products:manage','tables:manage','reports:view'],
+ 'manager'=>['orders:view','orders:create','orders:pay','orders:cancel','products:manage','reports:view'],
  'chef'=>['orders:view','orders:prepare'],
  'waiter'=>['orders:view','orders:create','orders:serve'],
  'staff'=>['orders:view','orders:create'],
@@ -83,3 +83,23 @@ function trim_text(mixed $value,int $max): string {
  if(!is_string($value))return '';return mb_substr(trim($value),0,$max,'UTF-8');
 }
 function require_post(): void {if($_SERVER['REQUEST_METHOD']!=='POST')fail('POST required',405);}
+
+// Existing databases keep their historical records; this adds the new login column.
+function ensure_phone_schema(): void {
+ try {query('SELECT phone FROM users LIMIT 0');}
+ catch(PDOException $e){
+  if($e->getCode()!=='42S22')throw $e;
+  try {database()->exec('ALTER TABLE users MODIFY COLUMN email VARCHAR(190) NULL, ADD COLUMN phone VARCHAR(11) NULL, ADD UNIQUE KEY users_phone_unique(phone)');}
+  catch(PDOException $race){if((int)($race->errorInfo[1]??0)!==1060)throw $race;query('SELECT phone FROM users LIMIT 0');}
+ }
+}
+function bd_phone(mixed $value): ?string {
+ if(!is_string($value))return null;
+ $value=strtr($value,['০'=>'0','১'=>'1','২'=>'2','৩'=>'3','৪'=>'4','৫'=>'5','৬'=>'6','৭'=>'7','৮'=>'8','৯'=>'9']);
+ $value=preg_replace('/[\s()\-]+/u','',trim($value));
+ if($value===null)return null;
+ if(str_starts_with($value,'+880'))$value='0'.substr($value,4);
+ elseif(str_starts_with($value,'00880'))$value='0'.substr($value,5);
+ elseif(str_starts_with($value,'880'))$value='0'.substr($value,3);
+ return preg_match('/^01[3-9][0-9]{8}$/D',$value)?$value:null;
+}

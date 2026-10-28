@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
 require_once is_file(__DIR__.'/private/bootstrap.php') ? __DIR__.'/private/bootstrap.php' : __DIR__.'/../private/bootstrap.php';
+ensure_phone_schema();
 $u=require_permission('orders:view');
 $id=integer_id($_GET['id']??null);
-$order=query('SELECT o.*,t.name AS table_name FROM orders o LEFT JOIN dining_tables t ON t.id=o.table_id WHERE o.id=?',[$id])->fetch();
+$order=query('SELECT o.* FROM orders o WHERE o.id=?',[$id])->fetch();
 if(!$order){http_response_code(404);exit('Receipt not found');}
 if(empty($order['paid_at'])){http_response_code(409);exit('Payment not yet confirmed');}
 $items=query('SELECT product_name,quantity,unit_price,subtotal FROM order_items WHERE order_id=? ORDER BY id',[$id])->fetchAll();
@@ -14,7 +15,6 @@ function e(mixed $s): string{return htmlspecialchars((string)$s,ENT_QUOTES|ENT_S
 <div class="paper"><h1>GANGCHIL</h1><p>Restaurant &amp; Kabsa Place</p><p>Cash Receipt</p><div class="line"></div>
 <div class="row"><span>Receipt #</span><strong><?=e($id)?></strong></div>
 <div class="row"><span>Date</span><span><?=e($order['paid_at'])?></span></div>
-<div class="row"><span>Table</span><span><?=e($order['table_name']??'Takeaway')?></span></div>
 <div class="line"></div>
 <?php foreach($items as $item): ?>
 <div><?=e($item['product_name'])?></div>
