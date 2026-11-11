@@ -1,0 +1,19 @@
+{
+  "name": "gangchil-desktop",
+  "productName": "Gangchil",
+  "version": "1.0.0",
+  "main": "main.cjs",
+  "description": "Gangchil counter app",
+  "author": "Gangchil",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.cjs",
+    "build": "node build-windows.cjs"
+  },
+  "devDependencies": {
+    "electron": "45.3.0",
+    "@electron/get": "5.1.0",
+    "extract-zip": "2.0.1"
+  }
+}

@@ -1,1 +1,25 @@
-{"name":"GANGCHIL Restaurant","short_name":"GANGCHIL","start_url":"/","display":"standalone","background_color":"#FAFAF7","theme_color":"#0F3D2E"}
+{
+  "name": "GANGCHIL Menu",
+  "short_name": "GANGCHIL",
+  "id": "/menu-app",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f8f3e6",
+  "theme_color": "#0c2a1f",
+  "description": "Restaurant menu and ordering",
+  "icons": [
+    {
+      "src": "/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

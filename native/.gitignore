@@ -1,0 +1,10 @@
+**/node_modules/
+**/dist/
+**/build/
+**/.gradle/
+**/local.properties
+**/*.p12
+**/*.jks
+**/*.keystore
+**/*.apk
+**/*.exe

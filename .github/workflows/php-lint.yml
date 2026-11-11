@@ -33,7 +33,9 @@ jobs:
       - name: Syntax check
         run: |
           for f in private/*.php public/*.php; do php -l "$f"; done
-          node --check public/app.js
+          for f in public/*.js native/windows/*.cjs native/windows/*.js; do node --check "$f"; done
+          node --test native/windows/test/*.test.cjs
           node tests/frontend-smoke.cjs
           php tests/phone.php
           php tests/phone-db.php
+          php tests/print-queue-db.php

@@ -23,7 +23,8 @@ jobs:
           set -euo pipefail
           mkdir -p dist/htdocs/private
           cp -a public/. dist/htdocs/
-          cp private/bootstrap.php private/realtime.php private/config.env.php private/config.example.php private/.htaccess dist/htdocs/private/
+          test ! -f private/config.php
+          cp private/*.php private/.htaccess dist/htdocs/private/
           cp db/mysql.sql dist/htdocs/private/mysql.sql
           test -f dist/htdocs/.htaccess
           test -f dist/htdocs/private/.htaccess
