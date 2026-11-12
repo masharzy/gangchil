@@ -8,11 +8,12 @@ if(DB_NAME!=='gangchil_ci')throw new RuntimeException('Disposable CI database re
 if(isset($argv[1])){
  $args=json_decode($argv[1],true,512,JSON_THROW_ON_ERROR);
  $_SERVER['HTTP_X_PRINT_TOKEN']=$args['token']??'';$_SESSION['uid']=1;$_SESSION['csrf']='ci-print-csrf';$_SERVER['HTTP_X_CSRF_TOKEN']='ci-print-csrf';
- print_routes($args['route'],'POST',$args['data']??[]);exit;
+ $_SERVER['HTTP_X_PRINT_PAIR']=$args['proof']??'';$_SERVER['HTTP_X_PRINT_DEVICE']=$args['key']??'';if(!empty($args['guest']))unset($_SESSION['uid']);
+ print_routes($args['route'],$args['method']??'POST',$args['data']??[]);exit;
 }
 function check(bool $value,string $message): void {if(!$value)throw new RuntimeException($message);}
 foreach(preg_split('/;[\t ]*(?:\r?\n|$)/',file_get_contents(__DIR__.'/../db/mysql.sql')) as $sql)if(trim($sql)!=='')database()->exec($sql);
-ensure_pin_schema();ensure_service_schema();ensure_cash_workflow();ensure_thermal_schema();print_queue_schema();
+ensure_pin_schema();ensure_service_schema();ensure_cash_workflow();ensure_thermal_schema();print_pair_schema();
 $tokens=[str_repeat('a',64),str_repeat('b',64)];
 foreach($tokens as $i=>$token)query('INSERT INTO print_devices(user_id,device_key,name,token_hash,printer_id) VALUES(1,?,?,?,1)',['ci-device-'.str_repeat((string)$i,24),'CI station '.$i,hash('sha256',$token)]);
 foreach([1,2] as $i){query("INSERT INTO orders(request_token,status,total,paid_at,table_label) VALUES(?,'confirmed',10,NOW(),'1')",['ci-order-'.str_repeat((string)$i,24)]);print_enqueue((int)database()->lastInsertId());}
@@ -38,4 +39,18 @@ check(call_route('worker/claim',[],$winner)['job']===null,'Uncertain physical de
 call_route('resolve',['id'=>$replacement['id'],'action'=>'retry','checked_paper'=>true],$winner);
 $retry=call_route('worker/claim',[],$winner)['job'];check($retry['id']!==$replacement['id'],'Manual retry must have a new delivery identity');
 query('UPDATE print_devices SET enabled=0 WHERE device_key=?',['ci-device-'.str_repeat((string)$other,24)]);check(isset(call_route('worker/claim',[],$other)['error']),'Revoked station retained access');
+// A guest can request pairing but cannot approve itself or read receipts.
+function guest_route(string $route,string $method='GET',array $data=[],string $proof='',string $key=''): array {
+ $pipes=[];$proc=proc_open([PHP_BINARY,__FILE__,json_encode(['route'=>'printing/'.$route,'method'=>$method,'data'=>$data,'guest'=>true,'proof'=>$proof,'key'=>$key])],[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);fclose($pipes[0]);return result([$proc,$pipes]);
+}
+$proof=str_repeat('c',64);$key='guest-'.str_repeat('x',24);
+$pair=guest_route('pair','POST',['device_key'=>$key,'name'=>'Customer tablet','proof'=>$proof]);check(strlen($pair['code']??'')===6,'Guest setup code missing');
+check(!guest_route('pair-status','GET',[],$proof,$key)['approved'],'Guest approved itself');
+check(isset(guest_route('settings')['error']),'Guest read shared printer details');
+check(isset(guest_route('approve','POST',['device_key'=>$key])['error']),'Guest approved print access');
+check(!empty(call_route('approve',['device_key'=>$key])['ok']),'Owner approval failed');
+check(guest_route('pair-status','GET',[],$proof,$key)['approved'],'Approved device cannot activate');
+call_route('worker/heartbeat',['online'=>true],$winner);check(guest_route('status')['online'],'Connected printer not shared');
+call_route('worker/heartbeat',['online'=>false],$winner);check(!guest_route('status')['online'],'Disconnected printer remained online');
+query("UPDATE print_devices SET connection_state='online',connection_at=DATE_SUB(NOW(),INTERVAL 30 SECOND) WHERE token_hash=?",[hash('sha256',$tokens[$winner])]);check(!guest_route('status')['online'],'Stale printer remained online');
 echo "PASS: real MySQL concurrent claims, printer serialization, fencing, lease failover, duplicate begin, acknowledgement retry, uncertain delivery hold, explicit retry, device revocation\n";

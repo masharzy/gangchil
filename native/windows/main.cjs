@@ -35,7 +35,7 @@ async function tick(){if(busy||closing||!config.printer||!readToken())return;bus
  if(job&&job.stage==='submitted'){await call('printing/worker/result',{id:job.id,claim:job.claim,status:'submitted'},token);fs.unlinkSync(store);job=null;}
  else if(job&&['dispatching','unknown'].includes(job.stage)){await call('printing/worker/recover',{id:job.id,claim:job.claim},token);fs.unlinkSync(store);job=null;}
  if(job?.stage==='claimed'){/* Never replay a stale begin after a restart. Claim expires safely. */fs.unlinkSync(store);}
- const available=await printers();if(!available.some(p=>p.name===config.printer&&p.available!==false)){status('Printer disconnected: '+config.printer);return;}
+ const available=await printers();const selected=available.find(p=>p.name===config.printer);await call('printing/worker/heartbeat',{online:!!selected&&selected.connection==='online'},token);if(!selected||selected.available===false){status('Printer disconnected: '+config.printer);return;}
  const answer=await call('printing/worker/claim',{},token);if(!answer.job){status(answer.blocked?'Receipt needs review in Printer settings':'Printer selected · '+config.printer);return;}
  job={...answer.job,stage:'claimed'};saveJob(job);
  // Persist uncertainty before the network transition, so a crash cannot authorize replay.

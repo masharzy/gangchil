@@ -28,7 +28,7 @@ try {
  ensure_product_lifecycle();
  if(STAFF_SURFACE)ensure_operations_schema();
  if(STAFF_SURFACE||$route==='customer/orders'){push_schema();native_push_schema();}
- if(!STAFF_SURFACE&&!in_array($route,['health','auth/me','menu','customer/orders'],true))fail('Staff sign-in required',401);
+ if(!STAFF_SURFACE&&!in_array($route,['health','auth/me','menu','customer/orders','printing/status','printing/pair','printing/pair-status'],true))fail('Staff sign-in required',401);
  if($route==='health' && $method==='GET'){
   query('SELECT 1');json_response(['ok'=>true]);
  }
