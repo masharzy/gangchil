@@ -15,7 +15,7 @@ SetCompressor /SOLID lzma
 !insertmacro MUI_LANGUAGE "English"
 Section "Gangchil"
 SetOutPath "$INSTDIR"
-File /r "dist/Gangchil-win32-x64/*"
+File /r "dist\Gangchil-win32-x64\*"
 CreateShortcut "$DESKTOP\Gangchil.lnk" "$INSTDIR\Gangchil.exe" "" "$INSTDIR\resources\app\app-icon.ico"
 CreateDirectory "$SMPROGRAMS\Gangchil"
 CreateShortcut "$SMPROGRAMS\Gangchil\Gangchil.lnk" "$INSTDIR\Gangchil.exe" "" "$INSTDIR\resources\app\app-icon.ico"
