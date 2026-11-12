@@ -53,6 +53,6 @@ Place these two files outside the web root, next to `private/bootstrap.php` (nev
 The app retrieves the public configuration after staff sign-in, so enabling the server configuration does not require another APK build. Token registration is staff authenticated and CSRF protected; sign-out unregisters the token. Server dispatch checks owner/manager status and notification mute preferences.
 
 For retry delivery even with no staff app open, configure cPanel cron every minute:
-`/usr/local/bin/php /home/laxqfoch/private/native_push_worker.php >/dev/null 2>&1`
+`/opt/cpanel/ea-php83/root/usr/bin/php /home/laxqfoch/private/native_push_worker.php >/dev/null 2>&1`
 
 The GitHub Actions Android artifact is unsigned. Sign using the existing release keystore before distribution. An Android release signature is different from a Windows trusted publisher certificate. Physical Android/Windows notification delivery requires device testing after DNS, HTTPS and FCM configuration are live.
