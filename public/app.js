@@ -94,6 +94,7 @@ async function connect(){
     channel.bind('pusher:subscription_succeeded',()=>{setRealtime('live');syncAfterConnection()});
     channel.bind('pusher:subscription_error',()=>setRealtime('offline'));
     channel.bind('gangchil:changed',(event)=>{
+      if(event?.kind==='order-status')window.GangchilNative?.wake?.();
       window.Ops?.changed();
       if(window.Ops?.eligible()&&event?.kind!=='menu')return;
       if(event?.kind==='menu'){
@@ -127,7 +128,7 @@ function retryMenu(){return init()}
 init();
 window.addEventListener('hashchange',()=>{if(staffMode())go(location.hash.slice(1)||(state.user?startPage():'login'));else{history.replaceState({},'',location.pathname+location.search);customerNavigate('menu',true)}});
 // Lock submissions before their async handlers run; always release on completion.
-document.addEventListener('submit',async event=>{const form=event.target;if(!form.matches('form'))return;if(form.dataset.busy){event.preventDefault();event.stopImmediatePropagation();return}form.dataset.busy='1';const button=form.querySelector('button:not([type="button"])');const label=button?.textContent;if(button){button.disabled=true;button.textContent='Please wait…'}const handler=form.getAttribute('onsubmit');if(!handler){delete form.dataset.busy;return}event.preventDefault();event.stopImmediatePropagation();try{await Function('event','return '+handler)(event)}finally{delete form.dataset.busy;if(button){button.disabled=false;button.textContent=label}}},true);
+document.addEventListener('submit',async event=>{const form=event.target;if(!form.matches('form'))return;const handler=form.getAttribute('onsubmit');if(!handler)return;if(form.dataset.busy){event.preventDefault();event.stopImmediatePropagation();return}form.dataset.busy='1';const button=form.querySelector('button:not([type="button"])');const label=button?.textContent;if(button){button.disabled=true;button.textContent='Please wait…'}event.preventDefault();event.stopImmediatePropagation();try{await Function('event','return '+handler)(event)}finally{delete form.dataset.busy;if(button){button.disabled=false;button.textContent=label}}},true);
 
 async function resetStaffPin(e){e.preventDefault();try{const pin=readPin('resetPin');await patch('/staff/'+state.resetStaffId,{phone:$('#resetStaffPhone').value,...(pin?{pin}:{})});go('staff');notice('Staff access updated')}catch(err){formError(err.message)}}
 window.addEventListener('keydown',event=>{window.Owner?.keydown(event);if(event.key==='Tab'&&state.drawerOpen){const controls=[...document.querySelectorAll('#sidebar a[href], #sidebar button:not([disabled])')];const first=controls[0],last=controls.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus()}}if(event.key==='Escape'&&state.drawerOpen){toggleDrawer(false);$('#menuToggle')?.focus?.()}});

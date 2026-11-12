@@ -1,18 +1,24 @@
 # Native counter apps
 
-Both apps display the existing hosted Gangchil interface. Printing is performed by native code; there is no localhost server, companion app, manual pairing code or Python requirement for shop staff.
+Both apps package the existing Gangchil interface, fonts and scripts locally. Hosting serves authenticated API/database requests and uploaded images. The built-in browser engine renders bundled files; shop staff do not install a browser or open a website. Printing is performed by native code; there is no localhost server, companion app, manual pairing code or Python requirement for shop staff.
 
 ## Windows build
 
 Build machine: Node 22.12+ (Node 24 recommended). In native/windows run npm ci, npm test, npm run build. Electron's Windows runtime is downloaded with checksum verification by @electron/get. NSIS is needed only to build the installer: run makensis installer.nsi from native/windows. Output: dist/Gangchil-Setup.exe. End users only run this installer. The current build is not Windows code-signed.
 
-Printer enumeration and silent print use Electron's Windows printer queue API. A Windows queue/driver must exist for USB/Bluetooth printers. Only the selected printer is used; the system default is not silently substituted. Receipts use 58mm paper, 48mm content and the bundled Hind Siliguri font. Windows credential protection encrypts the worker token on disk. Only the exact configured HTTPS app origin and its top-level frame can call the narrow IPC interface. Node is disabled in remote content.
+Printer enumeration and silent print use Electron's Windows printer queue API. A Windows queue/driver must exist for USB/Bluetooth printers. Only the selected printer is used; the system default is not silently substituted. Choose A4 for office printers, 58mm or 80mm for thermal printers. Content stays inside 44mm or 66mm with separate native page margins and the bundled Hind Siliguri font. Long names and amounts wrap; a render overflow check holds unsafe output. Windows physical USB detection refreshes about every 1.5 seconds, subject to Windows reporting delay. Installed queues without confirmed connectivity are labelled Saved, never Ready. Windows credential protection encrypts the worker token on disk. Only the exact configured HTTPS app origin and its top-level frame can call the narrow IPC interface. Node is disabled in remote content.
 
 ## Android build
 
 JDK 17+, Android SDK 35, Gradle 8.9+. In native/android run gradle assembleDebug, or configure a release signing setup outside the repository. The shipped APK is release-signed; reuse its private signing backup for future in-place updates. No signing key/password is in GitHub. Package: com.gangchil.counter; min SDK 26.
 
-The current APK uses WebView for the existing interface and a connected-device foreground service for receipt jobs. Bluetooth Classic SPP and USB bulk OUT are supported. USB serial-only adapters may require a different transport. Bengali/English text is rendered to a 384-dot bitmap, avoiding reliance on printer-resident Bengali fonts. USB/Bluetooth permissions remain per device. Product file upload and report download/print bridges are included.
+The current APK uses WebView for the bundled interface and a connected-device foreground service for receipt jobs. Bluetooth Classic SPP and USB bulk OUT are supported. USB serial-only adapters may require a different transport. Bengali/English text is rendered to a 384-dot bitmap, avoiding reliance on printer-resident Bengali fonts. USB/Bluetooth permissions remain per device. Product file upload and report download/print bridges are included.
+
+## App assets and updates
+
+Run `python3 native/shared/bundle-ui.py` after changing public UI files, then copy native/shared/ui into native/android/assets/ui and native/windows/native-ui.js into native/android/assets/native-ui.js. App updates carry UI changes; server API changes are deployed separately. The included fonts and Pusher retain their licenses in native/shared/licenses. InfinityFree browser verification is initialized in a separate hidden health window before API calls; local UI renders immediately.
+
+Cash confirmation wakes the local worker immediately, without waiting for the periodic fallback. Pusher status events wake other active app devices when configured. Shared claim/begin checks remain necessary to prevent duplicate prints; network latency, OS spooler and hardware warm-up still affect physical output time.
 
 ## Shared queue
 

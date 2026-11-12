@@ -1,2 +1,2 @@
 const {contextBridge,ipcRenderer}=require('electron');
-contextBridge.exposeInMainWorld('GangchilNative',Object.freeze({info:()=>ipcRenderer.invoke('printer-info'),configure:settings=>ipcRenderer.invoke('printer-configure',settings),test:()=>ipcRenderer.invoke('printer-test')}));
+contextBridge.exposeInMainWorld('GangchilNative',Object.freeze({info:()=>ipcRenderer.invoke('printer-info'),wake:()=>ipcRenderer.invoke('printer-wake'),onPrintersChanged:callback=>{const listener=()=>callback();ipcRenderer.on('printer-updated',listener);return ()=>ipcRenderer.removeListener('printer-updated',listener)},configure:settings=>ipcRenderer.invoke('printer-configure',settings),test:()=>ipcRenderer.invoke('printer-test')}));
