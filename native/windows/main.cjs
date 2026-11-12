@@ -1,7 +1,7 @@
 'use strict';
 const {app,BrowserWindow,ipcMain,protocol,net,safeStorage,session,Tray,Menu}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
-const {spawn}=require('node:child_process');const {assetFor}=require('./assets.cjs');const {profiles,receiptDocument}=require('./receipt.cjs');
+const {spawn}=require('node:child_process');const {assetFor}=require('./assets.cjs');const {receiptDocument}=require('./receipt.cjs');
 
 const ORIGIN='https://gangchil.42web.io';let win,tray,config={},busy=false,store,closing=false,printWin,monitor,monitorAt=0,monitorStates=new Map(),wakeAgain=false,authReady=Promise.resolve();
 const fontData=()=>fs.readFileSync(path.join(__dirname,'HindSiliguri-Regular.ttf')).toString('base64');let cachedFont;
@@ -22,13 +22,12 @@ function saveJob(job){const tmp=store+'.tmp';fs.writeFileSync(tmp,JSON.stringify
 function ensurePrintWindow(){if(!printWin||printWin.isDestroyed()){printWin=new BrowserWindow({width:800,height:600,show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});printWin.webContents.setWindowOpenHandler(()=>({action:'deny'}));}}
 async function sendReceipt(job){
  ensurePrintWindow();
- const profile=config.profile||(/MHT|thermal|POS|58mm/i.test(config.printer||'')?'thermal58':'a4'),paper=profiles[profile]||profiles.thermal58;
- cachedFont ||= fontData();await printWin.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(receiptDocument(job,cachedFont,profile)));
+ cachedFont ||= fontData();await printWin.loadURL('data:text/html;charset=utf-8,'+encodeURIComponent(receiptDocument(job,cachedFont)));
  await printWin.webContents.executeJavaScript('document.fonts.ready.then(() => true)');
  const bounds=await printWin.webContents.executeJavaScript(`(()=>{const receipt=document.querySelector('.receipt');return {height:Math.ceil(receipt.getBoundingClientRect().height),width:receipt.getBoundingClientRect().width,overflow:[...receipt.querySelectorAll('*')].some(e=>e.scrollWidth>e.clientWidth+1)}})()`);
  if(bounds.overflow)throw Error('Receipt content exceeds its safe print area. Printing held to avoid clipping.');
- const height=paper.height||Math.max(40000,Math.min(1500000,Math.ceil(bounds.height*25400/96)+16000));
- await new Promise((resolve,reject)=>printWin.webContents.print({silent:true,deviceName:config.printer,printBackground:true,color:false,landscape:false,scaleFactor:100,margins:{marginType:'custom',top:paper.margin,bottom:paper.margin,left:paper.margin,right:paper.margin},pageSize:{width:paper.width,height}},(ok,error)=>ok?resolve():reject(Error(error||'Printer rejected receipt'))));
+
+ await new Promise((resolve,reject)=>printWin.webContents.print({silent:true,deviceName:config.printer,printBackground:true,color:false,landscape:false,scaleFactor:100,usePrinterDefaultPageSize:true,margins:{marginType:'printableArea'}},(ok,error)=>ok?resolve():reject(Error(error||'Printer rejected receipt'))));
 }
 async function tick(){if(busy||closing||!config.printer||!readToken())return;busy=true;try{
  const token=readToken();let job=journal();
@@ -56,9 +55,9 @@ if(!app.requestSingleInstanceLock())app.quit();else{
   win=new BrowserWindow({width:1280,height:850,minWidth:390,minHeight:600,title:'Gangchil',icon:path.join(__dirname,'app-icon.ico'),autoHideMenuBar:true,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,backgroundThrottling:false}});
 
   win.webContents.setWindowOpenHandler(({url})=>{if(url==='about:blank'||new URL(url).origin===ORIGIN)return {action:'allow',overrideBrowserWindowOptions:{webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,preload:undefined}}};return {action:'deny'}});win.webContents.on('will-navigate',(e,url)=>{if(new URL(url).origin!==ORIGIN)e.preventDefault()});
-  handle('printer-info',async()=>({printers:await printers(),selected:config.printer||'',deviceKey:config.deviceKey,paired:!!readToken(),profile:config.profile||(/MHT|thermal|POS|58mm/i.test(config.printer||'')?'thermal58':'a4'),platform:'windows',status:lastStatus}));
+  handle('printer-info',async()=>({printers:await printers(),selected:config.printer||'',deviceKey:config.deviceKey,paired:!!readToken(),platform:'windows',status:lastStatus}));
   handle('printer-wake',async()=>{wakePrint();return {ok:true}});
-  handle('printer-configure',async value=>{if(busy)throw Error('Wait for the current receipt to finish');if(typeof value?.name!=='string'||!(await printers()).some(p=>p.name===value.name&&p.available!==false))throw Error('Select an available installed printer');if(value.token){if(typeof value.token!=='string'||!/^[a-f0-9]{64}$/.test(value.token))throw Error('Invalid device registration');if(!safeStorage.isEncryptionAvailable())throw Error('Windows credential protection unavailable');config.token=safeStorage.encryptString(value.token).toString('base64');}config.printer=value.name;config.profile=profiles[value.profile]?value.profile:(/MHT|thermal|POS|58mm/i.test(value.name)?'thermal58':'a4');persist();status('Printer selected · '+config.printer);wakePrint();return {ok:true};});
+  handle('printer-configure',async value=>{if(busy)throw Error('Wait for the current receipt to finish');if(typeof value?.name!=='string'||!(await printers()).some(p=>p.name===value.name&&p.available!==false))throw Error('Select an available installed printer');if(value.token){if(typeof value.token!=='string'||!/^[a-f0-9]{64}$/.test(value.token))throw Error('Invalid device registration');if(!safeStorage.isEncryptionAvailable())throw Error('Windows credential protection unavailable');config.token=safeStorage.encryptString(value.token).toString('base64');}config.printer=value.name;delete config.profile;persist();status('Printer selected · '+config.printer);wakePrint();return {ok:true};});
   handle('printer-test',async()=>{if(busy)throw Error('A receipt is being processed');if(!config.printer)throw Error('Select a printer');busy=true;try{await sendReceipt({order:{id:123456,table_label:'5',total:12345.67,paid_at_iso:'2026-11-12T09:16:59+06:00',paid_at:'2026-11-12 09:16:59'},items:[{product_name:'Test receipt · বাংলা খাবার · A long product name to check wrapping',quantity:1,unit_price:12345.67}]});return {ok:true}}finally{busy=false}});
   tray=new Tray(path.join(__dirname,'app-icon.png'));tray.setToolTip('Gangchil receipt printing');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open Gangchil',click:()=>win.show()},{label:'Exit Gangchil',click:()=>app.quit()}]));tray.on('double-click',()=>win.show());win.on('close',event=>{if(!closing){event.preventDefault();win.hide();}});
   cachedFont=fontData();ensurePrintWindow();printWin.loadURL('data:text/html,<html><body></body></html>').catch(()=>{});startMonitor();win.loadURL(ORIGIN+'/staff/');setInterval(tick,4000);win.on('closed',()=>{win=null;app.quit()});
