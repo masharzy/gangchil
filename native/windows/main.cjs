@@ -30,7 +30,15 @@ async function sendReceipt(job){
 
  await new Promise((resolve,reject)=>printWin.webContents.print({silent:true,deviceName:config.printer,printBackground:true,color:false,landscape:false,scaleFactor:100,usePrinterDefaultPageSize:true,margins:{marginType:'printableArea'}},(ok,error)=>ok?resolve():reject(Error(error||'Printer rejected receipt'))));
 }
-async function tick(){if(busy||closing||!config.printer||!readToken())return;busy=true;try{
+async function tick(){if(busy||closing||!config.printer)return;busy=true;try{
+ if(!readToken()){
+  if(!config.pairProof)return;
+  const proof=safeStorage.decryptString(Buffer.from(config.pairProof,'base64'));
+  const response=await net.fetch(ORIGIN+'/api/printing/pair-status',{credentials:'include',bypassCustomProtocolHandlers:true,headers:{'X-Print-Pair':proof,'X-Print-Device':config.deviceKey}});
+  if(!response.ok||!(await response.json()).approved){status('Waiting for Owner/Manager approval in Printer settings');return;}
+  config.token=safeStorage.encryptString(proof).toString('base64');persist();
+ }
+
  const token=readToken();let job=journal();
  if(job&&job.stage==='submitted'){await call('printing/worker/result',{id:job.id,claim:job.claim,status:'submitted'},token);fs.unlinkSync(store);job=null;}
  else if(job&&['dispatching','unknown'].includes(job.stage)){await call('printing/worker/recover',{id:job.id,claim:job.claim},token);fs.unlinkSync(store);job=null;}
@@ -79,7 +87,7 @@ if(!app.requestSingleInstanceLock())app.quit();else{
   win.webContents.setWindowOpenHandler(({url})=>{if(url==='about:blank'||new URL(url).origin===ORIGIN)return {action:'allow',overrideBrowserWindowOptions:{webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true,preload:undefined}}};return {action:'deny'}});win.webContents.on('will-navigate',(e,url)=>{if(new URL(url).origin!==ORIGIN)e.preventDefault()});
   handle('notifications-info',async()=>({supported:Notification.isSupported(),enabled:config.notificationsEnabled!==false}));
   handle('notifications-enable',async value=>{config.notificationsEnabled=value===true;persist();return {ok:true};});
-  handle('printer-info',async()=>({printers:await printers(),selected:config.printer||'',deviceKey:config.deviceKey,paired:!!readToken(),platform:'windows',status:lastStatus}));
+  handle('printer-info',async()=>{if(!config.pairProof&&safeStorage.isEncryptionAvailable()){config.pairProof=safeStorage.encryptString(crypto.randomBytes(32).toString('hex')).toString('base64');persist();}return {pairProof:config.pairProof?safeStorage.decryptString(Buffer.from(config.pairProof,'base64')):'',printers:await printers(),selected:config.printer||'',deviceKey:config.deviceKey,paired:!!readToken(),platform:'windows',status:lastStatus}});
   handle('printer-wake',async()=>{wakePrint();return {ok:true}});
   handle('printer-configure',async value=>{if(busy)throw Error('Wait for the current receipt to finish');if(typeof value?.name!=='string'||!(await printers()).some(p=>p.name===value.name&&p.available!==false))throw Error('Select an available installed printer');if(value.token){if(typeof value.token!=='string'||!/^[a-f0-9]{64}$/.test(value.token))throw Error('Invalid device registration');if(!safeStorage.isEncryptionAvailable())throw Error('Windows credential protection unavailable');config.token=safeStorage.encryptString(value.token).toString('base64');}config.printer=value.name;delete config.profile;persist();status('Printer selected · '+config.printer);wakePrint();return {ok:true};});
   handle('printer-test',async()=>{if(busy)throw Error('A receipt is being processed');if(!config.printer)throw Error('Select a printer');busy=true;try{await sendReceipt({order:{id:123456,table_label:'5',total:12345.67,paid_at_iso:'2026-11-12T09:16:59+06:00',paid_at:'2026-11-12 09:16:59'},items:[{product_name:'Test receipt · বাংলা খাবার · A long product name to check wrapping',quantity:1,unit_price:12345.67}]});return {ok:true}}finally{busy=false}});
