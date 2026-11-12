@@ -5,3 +5,10 @@
 node_modules/
 .DS_Store
 *.log
+
+/private/firebase-client.json
+/private/firebase-service-account.json
+*.p12
+*.pfx
+*.jks
+/native/android/google-services.json

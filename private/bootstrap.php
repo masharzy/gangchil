@@ -41,7 +41,8 @@ function json_response(array $data,int $status=200): never {
   ignore_user_abort(true);
   header('Content-Length: '.strlen($body));echo $body;session_write_close();
   if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();else{while(ob_get_level()>0){if(!@ob_end_flush())break;}flush();}
-  try{push_dispatch();}catch(Throwable $e){error_log('[GANGCHIL] Background push dispatch failed');}exit;
+  try{push_dispatch();}catch(Throwable $e){error_log('[GANGCHIL] Background push dispatch failed');}
+  try{if(function_exists('native_push_dispatch'))native_push_dispatch();}catch(Throwable $e){error_log('[GANGCHIL] Native push dispatch failed');}exit;
  }
  echo $body;exit;
 }

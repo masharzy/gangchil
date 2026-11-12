@@ -5,12 +5,21 @@ require_once is_file(__DIR__.'/private/realtime.php') ? __DIR__.'/private/realti
 require_once is_file(__DIR__.'/private/operations.php') ? __DIR__.'/private/operations.php' : __DIR__.'/../private/operations.php';
 require_once is_file(__DIR__.'/private/push.php') ? __DIR__.'/private/push.php' : __DIR__.'/../private/push.php';
 require_once is_file(__DIR__.'/private/print_queue.php') ? __DIR__.'/private/print_queue.php' : __DIR__.'/../private/print_queue.php';
+require_once is_file(__DIR__.'/private/native_push.php') ? __DIR__.'/private/native_push.php' : __DIR__.'/../private/native_push.php';
 date_default_timezone_set('Asia/Dhaka');
 header('X-Content-Type-Options: nosniff');
 $route=trim((string)($_GET['route']??''),'/');
 $method=$_SERVER['REQUEST_METHOD']??'GET';
 
 try {
+ $hasUsers=(bool)query("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name='users'")->fetchColumn();
+ $installed=$hasUsers&&(int)query('SELECT COUNT(*) FROM users')->fetchColumn()>0;
+ if($route==='health'&&$method==='GET')json_response(['ok'=>true,'installed'=>$installed]);
+ if(!$installed){
+  if($route==='auth/me'&&$method==='GET')json_response(['user'=>null,'csrf'=>csrf_token(),'installation_required'=>true]);
+  if($route==='menu'&&$method==='GET')json_response(['categories'=>[],'products'=>[]]);
+  json_response(['error'=>'Owner setup is required.','installation_required'=>true],503);
+ }
  ensure_phone_schema();
  ensure_pin_schema();
  ensure_service_schema();
@@ -18,7 +27,7 @@ try {
  if(STAFF_SURFACE){ensure_thermal_schema();print_queue_schema();}
  ensure_product_lifecycle();
  if(STAFF_SURFACE)ensure_operations_schema();
- if(STAFF_SURFACE||$route==='customer/orders')push_schema();
+ if(STAFF_SURFACE||$route==='customer/orders'){push_schema();native_push_schema();}
  if(!STAFF_SURFACE&&!in_array($route,['health','auth/me','menu','customer/orders'],true))fail('Staff sign-in required',401);
  if($route==='health' && $method==='GET'){
   query('SELECT 1');json_response(['ok'=>true]);
@@ -38,6 +47,7 @@ try {
    'key'=>realtime_enabled()?PUSHER_KEY:null,
    'cluster'=>realtime_enabled()?PUSHER_CLUSTER:null]);
  }
+ native_push_routes($route,$method);
  print_routes($route,$method);
  if($method!=='GET')require_csrf();
  if($route==='push/subscribe'&&$method==='POST'){
@@ -154,7 +164,7 @@ try {
     $q=$quantities[(int)$p['id']];$line=number_format(((int)round((float)$p['price']*100)*$q)/100,2,'.','');
     query('INSERT INTO order_items(order_id,product_id,product_name,quantity,unit_price,subtotal) VALUES(?,?,?,?,?,?)',[$orderId,$p['id'],$p['name'],$q,$p['price'],$line]);
    }
-   $pushCount=push_enqueue_order($orderId);audit($customerOrder?null:(int)$u['id'],$customerOrder?'customer.order.create':'order.create','order',$orderId);$db->commit();if($pushCount)$GLOBALS['gangchil_push_flush']=true;
+   $pushCount=push_enqueue_order($orderId)+native_push_enqueue($orderId);audit($customerOrder?null:(int)$u['id'],$customerOrder?'customer.order.create':'order.create','order',$orderId);$db->commit();if($pushCount)$GLOBALS['gangchil_push_flush']=true;
    if($customerOrder){$window['count']++;$_SESSION['customer_order_window']=$window;}
    realtime_publish('order-created');
    json_response(['order'=>['id'=>$orderId,'status'=>'pending_payment','total'=>$total]],201);
@@ -199,8 +209,9 @@ try {
   $pending=(int)query("SELECT COUNT(*) FROM orders WHERE status='pending_payment'")->fetchColumn();
   $recent=query("SELECT id,total,status,table_label,notes,created_at FROM orders WHERE status IN ('pending_payment','confirmed','completed') AND created_at>=DATE_SUB(NOW(),INTERVAL 1 DAY) ORDER BY id DESC LIMIT 100")->fetchAll();
   if($recent){$ids=array_column(array_filter($recent,fn($row)=>$row['status']==='pending_payment'),'id');$items=$ids?query('SELECT order_id,product_name AS name,quantity,unit_price AS price FROM order_items WHERE order_id IN ('.implode(',',array_fill(0,count($ids),'?')).') ORDER BY id',$ids)->fetchAll():[];$by=[];foreach($items as $item)$by[$item['order_id']][]=$item;foreach($recent as &$entry){$entry['created_at']=db_time_iso($entry['created_at']);$entry['items']=$by[$entry['id']]??[];}unset($entry);}
+  if((int)query('SELECT COUNT(*) FROM native_push_jobs WHERE due_at<=NOW() AND (locked_until IS NULL OR locked_until<NOW())')->fetchColumn()>0)$GLOBALS['gangchil_push_flush']=true;
   if((int)query('SELECT COUNT(*) FROM webpush_jobs WHERE due_at<=NOW() AND (locked_until IS NULL OR locked_until<NOW())')->fetchColumn()>0)$GLOBALS['gangchil_push_flush']=true;
-  json_response(['pending_count'=>$pending,'orders'=>$recent,'mute_until'=>$pref===false?0:(int)$pref,'server_time'=>time(),'revision'=>(int)query('SELECT COALESCE(MAX(id),0) FROM audit_logs')->fetchColumn()]);
+  json_response(['user_id'=>(int)$u['id'],'pending_count'=>$pending,'orders'=>$recent,'mute_until'=>$pref===false?0:(int)$pref,'server_time'=>time(),'revision'=>(int)query('SELECT COALESCE(MAX(id),0) FROM audit_logs')->fetchColumn()]);
  }
  if($route==='alerts/preferences' && $method==='POST'){
   $u=require_permission('*');$d=request_data();$duration=$d['duration']??null;

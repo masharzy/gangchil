@@ -35,3 +35,24 @@ No absolute exactly-once physical printing guarantee is claimed. Power loss, pap
 Windows worker tests use the actual worker code with mocked Electron/device boundaries to verify silent selected-device output, acknowledgement recovery and duplicate suppression. Frontend tests exercise current cart recovery and payment/print hooks. tests/print-queue-db.php uses the real queue routes and a disposable MySQL database in CI to test concurrent claims and delivery state transitions.
 
 Hardware still required: Windows driver/installer run, Android installation and Doze/foreground service behavior, MHT-P11 paper layout, Bluetooth/USB transfer and reconnect tests. A closed/force-stopped app cannot process jobs. PHP hosting uptime and InfinityFree verification must be checked on-device.
+
+## New hosting and first-owner setup (1.2.0)
+Both apps use `https://gangchil.xyz` for PHP APIs and product uploads. HTML, scripts and fonts remain bundled inside each application. Database credentials stay on the PHP server; no database password is embedded in either app. No old data/images are imported.
+
+The staff app opens `/install.php` when no owner exists. Setup needs a name, Bangladeshi phone number and 4-digit PIN, with CSRF protection and a database advisory lock; there is no installation key. Setup locks after the first account is created. The host needs working DNS and valid HTTPS before apps can use its API.
+
+Windows polls authenticated order alerts while running, including in the tray. Per-account cursors persist across restarts and consume muted events without replay. Fully exiting the application stops this listener. The build workflow produces an **unsigned** Windows installer; a trusted code-signing certificate/service is required for trusted Gangchil signing.
+
+Android has native Firebase Messaging integration, including background notification messages and foreground notification display. It does not depend on a printer being paired. Users enable notifications in the staff notification settings and allow the Android permission. This functionality is **not operational until a Firebase project is configured**. Expo also requires Android FCM credentials and is not used in this Java app.
+
+Place these two files outside the web root, next to `private/bootstrap.php` (never commit real values):
+
+- `firebase-client.json`: public Android configuration keys `apiKey`, `appId`, `projectId`, `messagingSenderId` from the Firebase Android app for package `com.gangchil.counter`.
+- `firebase-service-account.json`: FCM service-account credentials for the same project, with permission to send messages. Never bundle this private key in the APK or EXE.
+
+The app retrieves the public configuration after staff sign-in, so enabling the server configuration does not require another APK build. Token registration is staff authenticated and CSRF protected; sign-out unregisters the token. Server dispatch checks owner/manager status and notification mute preferences.
+
+For retry delivery even with no staff app open, configure cPanel cron every minute:
+`/usr/local/bin/php /home/laxqfoch/private/native_push_worker.php >/dev/null 2>&1`
+
+The GitHub Actions Android artifact is unsigned. Sign using the existing release keystore before distribution. An Android release signature is different from a Windows trusted publisher certificate. Physical Android/Windows notification delivery requires device testing after DNS, HTTPS and FCM configuration are live.

@@ -1,9 +1,10 @@
 'use strict';
-const {app,BrowserWindow,ipcMain,protocol,net,safeStorage,session,Tray,Menu}=require('electron');
+const {app,BrowserWindow,ipcMain,protocol,net,safeStorage,session,Tray,Menu,Notification,shell}=require('electron');
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
 const {spawn}=require('node:child_process');const {assetFor}=require('./assets.cjs');const {receiptDocument}=require('./receipt.cjs');
 
-const ORIGIN='https://gangchil.42web.io';let win,tray,config={},busy=false,store,closing=false,printWin,monitor,monitorAt=0,monitorStates=new Map(),wakeAgain=false,authReady=Promise.resolve();
+const {consumeAlerts}=require('./order-alerts.cjs');
+const ORIGIN='https://gangchil.xyz';let win,tray,config={},busy=false,store,closing=false,printWin,monitor,monitorAt=0,monitorStates=new Map(),wakeAgain=false,authReady=Promise.resolve();
 const fontData=()=>fs.readFileSync(path.join(__dirname,'HindSiliguri-Regular.ttf')).toString('base64');let cachedFont;
 const file=()=>path.join(app.getPath('userData'),'printer.json');
 function persist(){fs.writeFileSync(file(),JSON.stringify(config),{mode:0o600});}
@@ -13,7 +14,7 @@ async function printers(){return (await win.webContents.getPrintersAsync()).filt
 function startMonitor(){if(process.platform!=='win32')return;monitor=spawn('powershell.exe',['-NoLogo','-NoProfile','-NonInteractive','-Command',fs.readFileSync(path.join(__dirname,'printer-monitor.ps1'),'utf8')],{windowsHide:true,stdio:['ignore','pipe','ignore']});let buffer='';monitor.stdout.on('data',chunk=>{buffer+=chunk;let at;while((at=buffer.indexOf('\n'))>=0){const line=buffer.slice(0,at);buffer=buffer.slice(at+1);try{const values=JSON.parse(line);monitorStates=new Map((Array.isArray(values)?values:[values]).map(x=>[x.name,x]));monitorAt=Date.now();win?.webContents.send('printer-updated');}catch{}}});monitor.on('error',()=>{monitorAt=0});}
 function wakePrint(){if(busy){wakeAgain=true;return;}setTimeout(tick,0);}
 async function warmAuthentication(){const auth=new BrowserWindow({show:false,webPreferences:{nodeIntegration:false,contextIsolation:true,sandbox:true}});try{await auth.loadURL(ORIGIN+'/staff/api/health');for(let n=0;n<100;n++){if(await auth.webContents.executeJavaScript('document.body.innerText.includes(\'"ok":true\')'))return;await new Promise(r=>setTimeout(r,100));}}finally{auth.destroy();}}
-async function assetHandler(request){const url=new URL(request.url);if(url.origin!==ORIGIN)return net.fetch(request,{bypassCustomProtocolHandlers:true});if(/^\/(?:staff\/)?api(?:\/|$)/.test(url.pathname)){if(!url.pathname.endsWith('/health'))await authReady;return net.fetch(request,{bypassCustomProtocolHandlers:true,credentials:'include'});}const asset=assetFor(request.url,path.join(__dirname,'ui'));if(asset)return new Response(fs.readFileSync(asset.file),{headers:{'Content-Type':asset.mime+'; charset=utf-8','Cache-Control':'no-cache'}});if(url.pathname.startsWith('/uploads/')||url.pathname==='/aes.js')return net.fetch(request,{bypassCustomProtocolHandlers:true,credentials:'include'});return new Response('Not found',{status:404});}
+async function assetHandler(request){const url=new URL(request.url);if(url.origin!==ORIGIN)return net.fetch(request,{bypassCustomProtocolHandlers:true});if(/^\/(?:staff\/)?api(?:\/|$)/.test(url.pathname)){if(!url.pathname.endsWith('/health'))await authReady;return net.fetch(request,{bypassCustomProtocolHandlers:true,credentials:'include'});}const asset=assetFor(request.url,path.join(__dirname,'ui'));if(asset)return new Response(fs.readFileSync(asset.file),{headers:{'Content-Type':asset.mime+'; charset=utf-8','Cache-Control':'no-cache'}});if(url.pathname==='/install.php')return net.fetch(request,{bypassCustomProtocolHandlers:true,credentials:'include'});if(url.pathname.startsWith('/uploads/')||url.pathname==='/aes.js')return net.fetch(request,{bypassCustomProtocolHandlers:true,credentials:'include'});return new Response('Not found',{status:404});}
 function nativeUIScript(source){return source+'\n;void 0;';}
 function permitted(event){return event.sender===win?.webContents&&event.senderFrame===win.webContents.mainFrame&&new URL(event.senderFrame.url).origin===ORIGIN;}
 function handle(name,fn){ipcMain.handle(name,async(event,...args)=>{if(!permitted(event))throw Error('Untrusted app frame');return fn(...args)});}
@@ -43,11 +44,32 @@ async function tick(){if(busy||closing||!config.printer||!readToken())return;bus
  try{await sendReceipt(job);job.stage='submitted';saveJob(job);}catch(e){job.stage='unknown';saveJob(job);await call('printing/worker/result',{id:job.id,claim:job.claim,status:'unknown',detail:e.message},token);fs.unlinkSync(store);throw e;}
  await call('printing/worker/result',{id:job.id,claim:job.claim,status:'submitted'},token);fs.unlinkSync(store);status('Receipt sent · #'+String(job.order_id).padStart(6,'0'));
  }catch(e){status(e.message)}finally{busy=false;if(wakeAgain){wakeAgain=false;wakePrint();}}}
+let alertBusy=false;
+async function pollOrderAlerts(){
+ if(alertBusy||closing||!win)return;alertBusy=true;
+ try{
+  const payload=await call('alerts');config.alertCursors ||= {};
+  const before=JSON.stringify(config.alertCursors),orders=consumeAlerts(payload,config.alertCursors);if(JSON.stringify(config.alertCursors)!==before)persist();
+  for(const order of orders){
+   if(!Notification.isSupported())break;
+   const toast=new Notification({title:'New order #'+String(order.id).padStart(6,'0'),body:'Table '+String(order.table_label||'—')+' · Awaiting cash payment',icon:path.join(__dirname,'app-icon.png')});
+   toast.on('click',()=>{if(win.isMinimized())win.restore();win.show();win.focus();win.loadURL(ORIGIN+'/staff/#orders')});
+   toast.show();
+  }
+ }catch{ /* Signed out or offline: retry without resetting the account cursor. */ }
+ finally{alertBusy=false;}
+}
 let lastStatus='Select a printer';function status(value){lastStatus=value;win?.webContents.send('printer-status',value);}
 if(!app.requestSingleInstanceLock())app.quit();else{
  app.on('second-instance',()=>{win?.show();win?.focus()});
  app.whenReady().then(()=>{
-  try{config=JSON.parse(fs.readFileSync(file(),'utf8'))}catch{}if(!config.deviceKey){config.deviceKey=crypto.randomUUID();persist();}store=path.join(app.getPath('userData'),'active-receipt.json');
+  app.setAppUserModelId('com.gangchil.counter');
+  if(process.platform==='win32'){
+   app.setToastActivatorCLSID('{82882FF4-073D-4E08-BD7B-6984BE51A83A}');
+   const folder=path.join(app.getPath('appData'),'Microsoft','Windows','Start Menu','Programs','Gangchil');fs.mkdirSync(folder,{recursive:true});
+   shell.writeShortcutLink(path.join(folder,'Gangchil.lnk'),'create',{target:process.execPath,appUserModelId:'com.gangchil.counter',toastActivatorClsid:app.toastActivatorCLSID,icon:path.join(__dirname,'app-icon.ico'),iconIndex:0,description:'Gangchil orders and printing'});
+  }
+  try{config=JSON.parse(fs.readFileSync(file(),'utf8'))}catch{}if(!config.deviceKey){config.deviceKey=crypto.randomUUID();persist();}if(config.backendOrigin!==ORIGIN){delete config.token;delete config.alertCursors;config.backendOrigin=ORIGIN;persist();}store=path.join(app.getPath('userData'),'active-receipt-gangchil.xyz.json');
 
 
   protocol.handle('https',assetHandler);authReady=warmAuthentication().catch(e=>status('Backend connection: '+e.message));
@@ -59,7 +81,7 @@ if(!app.requestSingleInstanceLock())app.quit();else{
   handle('printer-wake',async()=>{wakePrint();return {ok:true}});
   handle('printer-configure',async value=>{if(busy)throw Error('Wait for the current receipt to finish');if(typeof value?.name!=='string'||!(await printers()).some(p=>p.name===value.name&&p.available!==false))throw Error('Select an available installed printer');if(value.token){if(typeof value.token!=='string'||!/^[a-f0-9]{64}$/.test(value.token))throw Error('Invalid device registration');if(!safeStorage.isEncryptionAvailable())throw Error('Windows credential protection unavailable');config.token=safeStorage.encryptString(value.token).toString('base64');}config.printer=value.name;delete config.profile;persist();status('Printer selected · '+config.printer);wakePrint();return {ok:true};});
   handle('printer-test',async()=>{if(busy)throw Error('A receipt is being processed');if(!config.printer)throw Error('Select a printer');busy=true;try{await sendReceipt({order:{id:123456,table_label:'5',total:12345.67,paid_at_iso:'2026-11-12T09:16:59+06:00',paid_at:'2026-11-12 09:16:59'},items:[{product_name:'Test receipt · বাংলা খাবার · A long product name to check wrapping',quantity:1,unit_price:12345.67}]});return {ok:true}}finally{busy=false}});
-  tray=new Tray(path.join(__dirname,'app-icon.png'));tray.setToolTip('Gangchil receipt printing');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open Gangchil',click:()=>win.show()},{label:'Exit Gangchil',click:()=>app.quit()}]));tray.on('double-click',()=>win.show());win.on('close',event=>{if(!closing){event.preventDefault();win.hide();}});
-  cachedFont=fontData();ensurePrintWindow();printWin.loadURL('data:text/html,<html><body></body></html>').catch(()=>{});startMonitor();win.loadURL(ORIGIN+'/staff/');setInterval(tick,4000);win.on('closed',()=>{win=null;app.quit()});
+  tray=new Tray(path.join(__dirname,'app-icon.png'));tray.setToolTip('Gangchil · orders and printing');tray.setContextMenu(Menu.buildFromTemplate([{label:'Open Gangchil',click:()=>win.show()},{label:'Exit Gangchil',click:()=>app.quit()}]));tray.on('double-click',()=>win.show());win.on('close',event=>{if(!closing){event.preventDefault();win.hide();}});
+  cachedFont=fontData();ensurePrintWindow();printWin.loadURL('data:text/html,<html><body></body></html>').catch(()=>{});startMonitor();win.loadURL(ORIGIN+'/staff/');setInterval(tick,4000);setInterval(pollOrderAlerts,5000);win.on('closed',()=>{win=null;app.quit()});
  });app.on('before-quit',()=>{closing=true;monitor?.kill();printWin?.destroy()});
 }

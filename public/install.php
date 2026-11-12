@@ -9,13 +9,13 @@ try {
  if($num>0){http_response_code(403);exit('Installer locked. An owner already exists. Delete public/install.php from hosting after setup.');}
  if($_SERVER['REQUEST_METHOD']==='POST'){
   if(!hash_equals(csrf_token(),(string)($_POST['csrf']??'')))throw new RuntimeException('Invalid security token. Reload page.');
-  $token=(string)($_POST['install_token']??'');
   $name=trim_text($_POST['name']??'',120);$phone=bd_phone($_POST['phone']??'');
   $pin=(string)($_POST['pin']??'');
-  if(strlen(INSTALL_TOKEN)<24 || !hash_equals(INSTALL_TOKEN,$token))throw new RuntimeException('Invalid installation token.');
   if(!$name || $phone===null || !valid_pin($pin))throw new RuntimeException('Valid name, Bangladeshi mobile number and 4-digit PIN required.');
   $db=database();
-  // Docker demo can bootstrap its schema automatically after verifying INSTALL_TOKEN.
+  // Serialize first-owner setup so concurrent requests cannot create two owners.
+  if((int)query("SELECT GET_LOCK(CONCAT(DATABASE(), '_owner_install'),10)")->fetchColumn()!==1)throw new RuntimeException('Setup is already running. Try again.');
+  // Bootstrap a clean schema; no old data is imported.
   // Shared cPanel deployments can still import db/mysql.sql with phpMyAdmin.
   // The InfinityFree package includes the schema in htdocs/private.
   $schemaFile=__DIR__.'/private/mysql.sql';
@@ -41,6 +41,7 @@ try {
   } catch(Throwable $e) {if($db->inTransaction())$db->rollBack();throw $e;}
  }
 } catch(Throwable $e) {$error=$e->getMessage();}
+finally {if($_SERVER['REQUEST_METHOD']==='POST'){try{query("SELECT RELEASE_LOCK(CONCAT(DATABASE(), '_owner_install'))");}catch(Throwable $ignored){}}}
 function h(string $value): string {return htmlspecialchars($value,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');}
 ?>
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -49,7 +50,6 @@ function h(string $value): string {return htmlspecialchars($value,ENT_QUOTES|ENT
 <?php if($error): ?><p class="error"><?=h($error)?></p><?php endif; ?>
 <form method="post">
 <input type="hidden" name="csrf" value="<?=h(csrf_token())?>">
-<label>Installation token<input type="password" name="install_token" required></label>
 <label>Owner name<input name="name" maxlength="120" required></label>
 <label>Owner mobile number<input type="tel" name="phone" inputmode="tel" placeholder="01XXXXXXXXX" maxlength="20" required></label>
 <label>Owner 4-digit PIN<input type="password" name="pin" inputmode="numeric" pattern="[0-9]{4}" minlength="4" maxlength="4" required></label>

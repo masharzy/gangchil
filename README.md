@@ -33,7 +33,7 @@ Requirements: PHP 8.2+, PDO MySQL, mbstring, OpenSSL, MySQL/MariaDB with InnoDB,
 
 For an existing hosting installation, preserve configuration, uploads and database data. Deploy private/print_queue.php first, then public/api.php and public/thermal-print.js to the corresponding existing htdocs paths. The complete current public/private source is included for fresh packages. Additive migrations create the queue tables. There is no database reset. Reload old browser tabs and stop the old Print Connector before switching to native printing.
 
-GitHub Actions packages an InfinityFree htdocs ZIP. It does not deploy to the hosting account. New installations use install.php with an installation token and an Owner phone/4-digit PIN; remove the installer afterwards. Existing installations do not run the installer again.
+GitHub Actions packages an InfinityFree htdocs ZIP. It does not deploy to the hosting account. New installations use install.php with an Owner name, phone and 4-digit PIN (no installation key); remove the installer afterwards. Existing installations do not run the installer again.
 
 ## Source and validation
 
