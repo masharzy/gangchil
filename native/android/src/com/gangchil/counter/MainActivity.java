@@ -36,5 +36,5 @@ public class MainActivity extends Activity {
  @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(request==11&&upload!=null){upload.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result,data));upload=null;}}
  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);if(web!=null&&(intent.getBooleanExtra("open_orders",false)||intent.hasExtra("order_id")))web.loadUrl(SITE+"/staff/#orders");}
  @Override public void onBackPressed(){if(web.canGoBack())web.goBack();else super.onBackPressed();}
- @Override protected void onResume(){super.onResume();if(web!=null)CookieManager.getInstance().flush();}
+ @Override protected void onResume(){super.onResume();if(web!=null)CookieManager.getInstance().flush();if(!backendOnline&&authWeb!=null)authWeb.loadUrl(SITE+"/staff/api/health");}
 }

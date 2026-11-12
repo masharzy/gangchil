@@ -1,5 +1,11 @@
 (()=>{
- if(typeof GangchilAndroid==='undefined')return;
+ if(typeof GangchilAndroid==='undefined'){
+  if(!window.GangchilNative?.notificationsInfo)return;
+  let panel;
+  async function draw(){const info=await GangchilNative.notificationsInfo();panel.querySelector('[role=status]').textContent=!info.supported?'Notifications are unavailable on this system.':info.enabled?'Order notifications are on, including while Gangchil is in the system tray.':'Order notifications are off.';}
+  function openSettings(){if(!panel){panel=document.createElement('dialog');panel.className='pwa-dialog';panel.innerHTML='<header><h2>Order notifications</h2><button type="button" class="icon-button" aria-label="Close">×</button></header><p role="status"></p><div class="pwa-actions"><button type="button" class="btn" data-enable>Enable</button><button type="button" class="small" data-disable>Disable</button></div>';panel.querySelector('header button').onclick=()=>panel.close();for(const [selector,value]of [['[data-enable]',true],['[data-disable]',false]])panel.querySelector(selector).onclick=async()=>{await GangchilNative.notificationsEnable(value);await draw();};document.body.append(panel);}panel.showModal();draw().catch(()=>{});}
+  window.PWA={...window.PWA,openSettings,isOpen:()=>!!panel?.open,close:()=>panel?.close()};return;
+ }
  let dialog,busy=false,registered='',message='Enable order notifications on this device.';
  async function request(path,data){const r=await fetch('/staff/api/native-push/'+path,{method:data?'POST':'GET',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CSRF-Token':state.csrf},body:data?JSON.stringify(data):undefined});const j=await r.json();if(!r.ok)throw Error(j.error||'Notification request failed');return j;}
  function draw(){if(dialog?.open)dialog.querySelector('[role=status]').textContent=message;}
