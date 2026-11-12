@@ -13,3 +13,10 @@ test('ambiguous begin cannot trigger a physical print',async()=>{const h=harness
 test('printer error is held for paper review, never blindly replayed',async()=>{const h=harness({printFails:true});try{await h.tick();await h.tick();assert.equal(h.writes,1);assert.equal(h.acks,1)}finally{h.cleanup()}});
 
 test('injected native settings return a cloneable value without exporting functions',()=>{const h=harness();try{const source=fs.readFileSync(path.join(__dirname,'../native-ui.js'),'utf8');const raw={window:{}};const oldValue=vm.runInNewContext(source,raw);assert.throws(()=>structuredClone(oldValue),/clone/);const fixed={window:{}};const result=vm.runInNewContext(h.nativeUIScript(source),fixed);assert.equal(structuredClone(result),undefined);assert.equal(typeof fixed.window.AutoPrint.openSettings,'function')}finally{h.cleanup()}});
+test('HP printer choices remain available even if shared server settings fail',async()=>{
+ const nodes=new Map();const get=selector=>{if(!nodes.has(selector))nodes.set(selector,{replaceChildren(...children){this.children=children},textContent:'',value:''});return nodes.get(selector)};
+ const dialog={querySelector:get,open:false,showModal(){this.open=true}};
+ const ctx={window:null,document:{createElement:()=>dialog,body:{append(){}}},GangchilNative:{info:async()=>({printers:[{name:'HP DeskJet'}],selected:'',status:'Select a printer'})},Option:class{constructor(text,value){this.text=text;this.value=value}},state:{csrf:'test'},fetch:async()=>{throw Error('Shared server unavailable')}};ctx.window=ctx;
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../native-ui.js'),'utf8'),ctx);ctx.AutoPrint.openSettings();await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(get('#nativePrinter').children[0].text,'Choose a printer');assert.equal(get('#nativePrinter').children[1].value,'HP DeskJet');assert.match(get('#printerStatus').textContent,/Shared server unavailable/);
+});
