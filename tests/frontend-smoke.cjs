@@ -13,5 +13,8 @@ const run=s=>vm.runInContext(s,ctx);
  run("state.user={id:1,role:'owner'};loadOrders=async()=>{}");
  await Promise.all([run('Payment.receive(42)'),run('Payment.receive(42)')]);assert.equal(payments,1);assert.equal(sends,1);
  rejectPayment=true;await run('Payment.receive(42)');assert.equal(payments,2);assert.equal(sends,1,'failed payment must not print');
+ run("state.user={id:2,role:'manager',permissions:{}};state.ordersLoaded=true;state.orders=[]");
+ const overview=run('homePage()');assert.match(overview,/Overview/);assert.doesNotMatch(overview,/Printer settings|Notifications|rc-grid/);
+ run('managerNav()');assert.match(el('#sidebar').innerHTML,/Manager navigation/);assert.match(el('#sidebar').innerHTML,/>Menu</);assert.match(el('#sidebar').innerHTML,/href="#home"/);assert.doesNotMatch(el('#sidebar').innerHTML,/Staff & access|New order/);
  console.log('PASS: cart reload and validation, assigned-table cash flow, payment deduplication, no print on failed payment, image rows and receipt states');
 })().catch(e=>{console.error(e);process.exitCode=1});

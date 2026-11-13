@@ -31,13 +31,7 @@ async function sendReceipt(job){
  await new Promise((resolve,reject)=>printWin.webContents.print({silent:true,deviceName:config.printer,printBackground:true,color:false,landscape:false,scaleFactor:100,usePrinterDefaultPageSize:true,margins:{marginType:'printableArea'}},(ok,error)=>ok?resolve():reject(Error(error||'Printer rejected receipt'))));
 }
 async function tick(){if(busy||closing||!config.printer)return;busy=true;try{
- if(!readToken()){
-  if(!config.pairProof)return;
-  const proof=safeStorage.decryptString(Buffer.from(config.pairProof,'base64'));
-  const response=await net.fetch(ORIGIN+'/api/printing/pair-status',{credentials:'include',bypassCustomProtocolHandlers:true,headers:{'X-Print-Pair':proof,'X-Print-Device':config.deviceKey}});
-  if(!response.ok||!(await response.json()).approved){status('Waiting for Owner/Manager approval in Printer settings');return;}
-  config.token=safeStorage.encryptString(proof).toString('base64');persist();
- }
+ if(!readToken()){status('Open Printer setup to enable automatic printing');return;}
 
  const token=readToken();let job=journal();
  if(job&&job.stage==='submitted'){await call('printing/worker/result',{id:job.id,claim:job.claim,status:'submitted'},token);fs.unlinkSync(store);job=null;}
