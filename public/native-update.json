@@ -1,0 +1,10 @@
+{
+  "android": {
+    "version": "1.2.5",
+    "url": "https://gangchil.xyz/downloads/Gangchil-Android-1.2.5.apk"
+  },
+  "windows": {
+    "version": "1.2.5",
+    "url": "https://gangchil.xyz/downloads/Gangchil-Setup-1.2.5.exe"
+  }
+}
